@@ -1,0 +1,1189 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Suchsel-Generator</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#4f46e5">
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; overscroll-behavior: none; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #eef1f7; color: #0f172a;
+    -webkit-user-select: none; user-select: none;
+    -webkit-touch-callout: none;
+    touch-action: manipulation;
+  }
+  .app { height: 100dvh; display: flex; flex-direction: column; }
+  @supports not (height: 100dvh) { .app { height: 100vh; } }
+
+  .screen { display: none; flex: 1; min-height: 0; flex-direction: column; }
+  .screen.active { display: flex; }
+
+  header {
+    display: flex; align-items: center; gap: 8px;
+    padding: calc(env(safe-area-inset-top) + 10px) 12px 10px;
+    background: #4f46e5; color: #fff; flex: 0 0 auto;
+  }
+  header h1 { font-size: 17px; margin: 0; font-weight: 700; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  header .sub { font-size: 13px; opacity: .9; white-space: nowrap; }
+
+  .btn {
+    border: none; border-radius: 10px; padding: 10px 16px; font-size: 15px; font-weight: 600;
+    background: #4f46e5; color: #fff; cursor: pointer; touch-action: manipulation;
+  }
+  .btn:active { filter: brightness(.9); }
+  .btn.ghost { background: #fff; color: #334155; border: 1px solid #cbd5e1; }
+  .btn.danger { background: #fee2e2; color: #b91c1c; }
+  .btn.full { width: 100%; }
+  .btn.hdr { background: rgba(255,255,255,.18); color: #fff; padding: 7px 12px; font-size: 14px; }
+  .btn.hdr.back { padding: 7px 12px 7px 8px; }
+  .icon-btn {
+    background: none; border: none; font-size: 18px; padding: 8px; cursor: pointer;
+    color: #64748b; touch-action: manipulation; line-height: 1;
+  }
+
+  main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+  /* ---- RÃ¤tsel-Liste ---- */
+  #puzzle-list { flex: 1; min-height: 0; overflow-y: auto; padding: 12px; -webkit-overflow-scrolling: touch; }
+  .card {
+    background: #fff; border-radius: 14px; padding: 12px 8px 12px 14px; margin-bottom: 10px;
+    display: flex; align-items: center; gap: 4px; cursor: pointer;
+    box-shadow: 0 1px 3px rgba(15,23,42,.08);
+  }
+  .card-main { flex: 1; min-width: 0; }
+  .card-title { font-weight: 700; font-size: 15px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-meta { font-size: 12.5px; color: #64748b; margin-bottom: 8px; }
+  .bar { height: 6px; background: #e2e8f0; border-radius: 999px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: #10b981; border-radius: 999px; transition: width .3s; }
+  .card-sub { font-size: 12px; color: #64748b; margin-top: 5px; }
+  .badge-done { display: inline-block; background: #dcfce7; color: #15803d; font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; margin-left: 6px; }
+
+  /* ---- Neues RÃ¤tsel ---- */
+  #new-form {
+    flex: 1; min-height: 0; overflow-y: auto; padding: 14px; background: #fff;
+    -webkit-overflow-scrolling: touch; display: none; flex-direction: column; gap: 12px;
+  }
+  #new-form.open { display: flex; }
+  #new-form label { font-size: 13px; font-weight: 600; color: #334155; display: block; margin-bottom: 5px; }
+  #words {
+    width: 100%; min-height: 120px; resize: vertical; border: 1.5px solid #cbd5e1; border-radius: 10px;
+    padding: 10px; font-size: 14px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: .06em; -webkit-user-select: text; user-select: text;
+  }
+  #words:focus { outline: none; border-color: #4f46e5; }
+  .hint { font-size: 12px; color: #64748b; margin-top: 4px; }
+  .count-badge { display: inline-block; background: #eef2ff; color: #4338ca; font-weight: 700; border-radius: 999px; padding: 1px 9px; }
+  .row3 { display: flex; gap: 10px; }
+  .row3 > div { flex: 1; }
+  .row3 input {
+    width: 100%; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 10px; font-size: 16px;
+    -webkit-user-select: text; user-select: text;
+  }
+  .row3 input:focus { outline: none; border-color: #4f46e5; }
+  .toggles { display: flex; flex-wrap: wrap; gap: 8px; }
+  .toggles label {
+    display: flex; align-items: center; gap: 6px; margin: 0; cursor: pointer;
+    background: #f1f5f9; border-radius: 999px; padding: 8px 13px; font-size: 14px; font-weight: 600; color: #334155;
+  }
+  .toggles input { accent-color: #4f46e5; width: 17px; height: 17px; }
+  #form-error { display: none; background: #fee2e2; color: #b91c1c; border-radius: 10px; padding: 10px 12px; font-size: 13.5px; font-weight: 600; }
+
+  /* ---- Spiel ---- */
+  #board-wrap { flex: 1; min-height: 0; position: relative; overflow: hidden; background: #fff; }
+  #board { position: absolute; touch-action: none; }
+  #fx { position: absolute; inset: 0; pointer-events: none; }
+  #play-progress { font-size: 13px; font-weight: 700; background: rgba(255,255,255,.18); padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+
+  #wordlist { flex: 0 0 auto; max-height: 34%; overflow-y: auto; background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 10px 12px calc(env(safe-area-inset-bottom) + 12px); -webkit-overflow-scrolling: touch; }
+  #chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    font-size: 13px; font-weight: 600; letter-spacing: .05em; color: #334155;
+    background: #e8edf5; border-radius: 999px; padding: 5px 11px; white-space: nowrap;
+    transition: background .2s, color .2s;
+  }
+  .chip.found { background: #d1fae5; color: #047857; text-decoration: line-through; }
+  .chip.revealed { background: #e2e8f0; color: #94a3b8; text-decoration: line-through; }
+  .chip.hinted { box-shadow: inset 0 0 0 2px #fbbf24; }
+
+  #board-overlay {
+    position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+    background: rgba(255,255,255,.72); flex-direction: column; gap: 14px; z-index: 5; padding: 20px;
+  }
+  #board-overlay.show { display: flex; }
+  #board-overlay .big { font-size: 26px; font-weight: 800; color: #0f172a; }
+  #board-overlay .row { display: flex; gap: 10px; }
+
+  /* ---- Sheet & Toast ---- */
+  #sheet-backdrop {
+    position: fixed; inset: 0; background: rgba(15,23,42,.4); opacity: 0; pointer-events: none;
+    transition: opacity .2s; z-index: 20;
+  }
+  #sheet-backdrop.show { opacity: 1; pointer-events: auto; }
+  #sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; background: #fff; border-radius: 18px 18px 0 0;
+    padding: 10px 14px calc(env(safe-area-inset-bottom) + 14px); z-index: 21;
+    transform: translateY(105%); transition: transform .25s; max-width: 560px; margin: 0 auto;
+  }
+  #sheet.show { transform: translateY(0); }
+  #sheet-title { font-size: 14px; font-weight: 700; color: #64748b; text-align: center; padding: 6px 0 10px; }
+  #sheet .btn { display: block; width: 100%; margin-top: 8px; padding: 13px 16px; font-size: 15.5px; }
+  #sheet .btn.plain { background: #f1f5f9; color: #0f172a; }
+
+  #toast {
+    position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 90px); transform: translateX(-50%) translateY(8px);
+    background: #111827; color: #fff; font-size: 14px; font-weight: 600; padding: 9px 16px; border-radius: 999px;
+    opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 30; max-width: 88vw; text-align: center;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .empty { text-align: center; color: #64748b; padding: 48px 24px; font-size: 15px; line-height: 1.6; }
+  .fab-wrap { padding: 12px 14px calc(env(safe-area-inset-bottom) + 12px); background: #fff; border-top: 1px solid #e2e8f0; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ======== RÃ¤tsel-Liste ======== -->
+  <div id="screen-puzzles" class="screen active">
+    <header>
+      <h1>Suchsel</h1>
+      <button class="btn hdr" id="btn-new">ï¼ Neues RÃ¤tsel</button>
+    </header>
+    <main>
+      <div id="puzzle-list"></div>
+      <form id="new-form" autocomplete="off">
+        <div>
+          <label for="words">WÃ¶rter</label>
+          <textarea id="words" rows="6" spellcheck="false" placeholder="BAUMHAUS, SCHNECKE, FERNGLAS, APFEL, ZUG â¦"></textarea>
+          <div class="hint">Mit Komma, Semikolon oder Zeilenumbruch trennen Â· Umlaute und Ã erlaubt Â· <span class="count-badge" id="word-count">0 WÃ¶rter</span></div>
+        </div>
+        <div class="row3">
+          <div><label for="in-width">Breite</label><input id="in-width" type="number" inputmode="numeric" min="4" max="80" value="50"></div>
+          <div><label for="in-height">HÃ¶he</label><input id="in-height" type="number" inputmode="numeric" min="4" max="80" value="13"></div>
+          <div><label for="in-target">WÃ¶rter</label><input id="in-target" type="number" inputmode="numeric" min="1" max="60" value="15"></div>
+        </div>
+        <div>
+          <label>Verstecken in Richtungen</label>
+          <div class="toggles">
+            <label><input type="checkbox" id="dir-h" checked> Horizontal</label>
+            <label><input type="checkbox" id="dir-v" checked> Vertikal</label>
+            <label><input type="checkbox" id="dir-d" checked> Diagonal</label>
+            <label><input type="checkbox" id="dir-r" checked> RÃ¼ckwÃ¤rts</label>
+          </div>
+        </div>
+        <div id="form-error"></div>
+        <button type="submit" class="btn full" id="btn-create">RÃ¤tsel erstellen</button>
+        <button type="button" class="btn ghost full" id="btn-cancel-form">Abbrechen</button>
+      </form>
+    </main>
+  </div>
+
+  <!-- ======== Spiel ======== -->
+  <div id="screen-play" class="screen">
+    <header>
+      <button class="btn hdr back" id="btn-back">â¹</button>
+      <h1 id="play-title">RÃ¤tsel</h1>
+      <span id="play-progress">0 / 0</span>
+      <button class="btn hdr" id="btn-menu">â¯</button>
+    </header>
+    <main>
+      <div id="board-wrap">
+        <canvas id="board"></canvas>
+        <canvas id="fx"></canvas>
+        <div id="board-overlay">
+          <div class="big" id="overlay-title">ð GelÃ¶st!</div>
+          <div class="row">
+            <button class="btn ghost" id="btn-overlay-list">RÃ¤tsel-Liste</button>
+            <button class="btn" id="btn-overlay-again">Neu spielen</button>
+          </div>
+        </div>
+      </div>
+      <div id="wordlist"><div id="chips"></div></div>
+    </main>
+  </div>
+
+</div>
+
+<!-- Bottom-Sheet -->
+<div id="sheet-backdrop"></div>
+<div id="sheet">
+  <div id="sheet-title"></div>
+  <div id="sheet-actions"></div>
+</div>
+<div id="toast"></div>
+
+<script>
+/*
+ * Suchsel-Generator: versteckt WÃ¶rter in einem Buchstabengitter (horizontal,
+ * vertikal, diagonal â optional rÃ¼ckwÃ¤rts) per Backtracking und fÃ¼llt die
+ * Restfelder mit hÃ¤ufigen bzw. wortÃ¤hnlichen Buchstaben.
+ *
+ * LÃ¤uft im Browser (window.SuchselGen) und in Node (module.exports).
+ */
+(function (global) {
+  'use strict';
+
+  var GROUP_BASE = {
+    horizontal: [[0, 1]],
+    vertical: [[1, 0]],
+    diagonal: [[1, 1], [1, -1]]
+  };
+
+  /* Deutsche BuchstabenhÃ¤ufigkeit (gewichtete Kette) fÃ¼r die FÃ¼llfelder. */
+  var FREQ =
+    'EEEEEEEEEEEEEEEEE' + // E 17
+    'NNNNNNNNNN' +        // N 10
+    'IIIIIII' +           // I 7
+    'RRRRRRR' +
+    'SSSSSSS' +
+    'TTTTTTT' +
+    'AAAAAA' +            // A 6
+    'DDDDD' + 'HHHHH' +   // D,H je 5
+    'UUUU' +              // U 4
+    'LLL' + 'CCC' + 'GGG' + 'MMM' + 'OOO' + // je 3
+    'WW' + 'FF' + 'KK' +  // je 2
+    'ZPVBÃÃÃ';            // je 1
+
+  function mulberry32(seed) {
+    var a = seed >>> 0;
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      var t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function normalizeWord(w) {
+    return String(w || '')
+      .replace(/[Ãáº]/g, 'SS')
+      .toUpperCase()
+      .replace(/[^A-ZÃÃÃ]/g, '');
+  }
+
+  function activeDirs(directions) {
+    var dirs = [];
+    ['horizontal', 'vertical', 'diagonal'].forEach(function (g) {
+      if (!directions[g]) return;
+      GROUP_BASE[g].forEach(function (d) {
+        dirs.push(d);
+        if (directions.reversed) dirs.push([-d[0], -d[1]]);
+      });
+    });
+    return dirs;
+  }
+
+  /* LÃ¤ngste mÃ¶gliche Gerade im Gitter fÃ¼r die erlaubten Richtungen. */
+  function maxWordLen(width, height, dirs) {
+    var m = 0;
+    dirs.forEach(function (d) {
+      var len = d[0] === 0 ? width : (d[1] === 0 ? height : Math.min(width, height));
+      if (len > m) m = len;
+    });
+    return m;
+  }
+
+  function fits(grid, H, W, word, r, c, dr, dc) {
+    var er = r + dr * (word.length - 1);
+    var ec = c + dc * (word.length - 1);
+    if (r < 0 || c < 0 || er < 0 || er >= H || ec < 0 || ec >= W) return false;
+    for (var i = 0; i < word.length; i++) {
+      var ch = grid[r + dr * i][c + dc * i];
+      if (ch !== '' && ch !== word.charAt(i)) return false;
+    }
+    return true;
+  }
+
+  /*
+   * Ein Platzierungsversuch: WÃ¶rter (lÃ¤ngste zuerst) per Backtracking setzen.
+   * Pro Wort mehrere zufÃ¤llige Kandidaten; scheitert die Rekursion, wird das
+   * Wort zurÃ¼ckgenommen (unplace). stepBudget verhindert Entartung.
+   */
+  function attempt(words, width, height, dirs, rng, triesPerWord, stepBudget) {
+    var grid = [];
+    for (var r = 0; r < height; r++) {
+      var row = [];
+      for (var c = 0; c < width; c++) row.push('');
+      grid.push(row);
+    }
+    var steps = 0;
+    var placements = [];
+
+    function solve(i) {
+      if (i === words.length) return true;
+      var word = words[i];
+      for (var a = 0; a < triesPerWord; a++) {
+        if (++steps > stepBudget) return false;
+        var d = dirs[(rng() * dirs.length) | 0];
+        var r0 = (rng() * height) | 0;
+        var c0 = (rng() * width) | 0;
+        if (!fits(grid, height, width, word, r0, c0, d[0], d[1])) continue;
+
+        var prev = [];
+        for (var k = 0; k < word.length; k++) {
+          var rr = r0 + d[0] * k, cc = c0 + d[1] * k;
+          prev.push(grid[rr][cc]);
+          grid[rr][cc] = word.charAt(k);
+        }
+        if (solve(i + 1)) {
+          placements[i] = { word: word, r: r0, c: c0, dr: d[0], dc: d[1] };
+          return true;
+        }
+        for (var j = 0; j < prev.length; j++) {
+          grid[r0 + d[0] * j][c0 + d[1] * j] = prev[j];
+        }
+      }
+      return false;
+    }
+
+    return solve(0) ? { grid: grid, placements: placements } : null;
+  }
+
+  /*
+   * generate({width, height, words, directions, seed})
+   * directions: {horizontal, vertical, diagonal, reversed} â Default: alles an.
+   * RÃ¼ckgabe: {width, height, directions, grid:[Zeilenstrings], words:[{word,r,c,dr,dc}]}
+   * oder {error: '...'}.
+   */
+  function generate(opts) {
+    opts = opts || {};
+    var width = Math.max(2, opts.width | 0);
+    var height = Math.max(2, opts.height | 0);
+    var d = opts.directions || {};
+    var directions = {
+      horizontal: d.horizontal !== false,
+      vertical: d.vertical !== false,
+      diagonal: d.diagonal !== false,
+      reversed: d.reversed !== false
+    };
+    var rng = (opts.seed != null) ? mulberry32(opts.seed) : Math.random;
+
+    var seen = {}, words = [];
+    (opts.words || []).forEach(function (w) {
+      var n = normalizeWord(w);
+      if (n && !seen[n]) { seen[n] = true; words.push(n); }
+    });
+    if (!words.length) return { error: 'Keine gÃ¼ltigen WÃ¶rter angegeben.' };
+
+    var dirs = activeDirs(directions);
+    if (!dirs.length) return { error: 'Bitte mindestens eine Richtung aktivieren.' };
+
+    var maxLen = maxWordLen(width, height, dirs);
+    var tooLong = words.filter(function (w) { return w.length > maxLen; });
+    if (tooLong.length) {
+      return { error: 'Zu lang fÃ¼r ein ' + width + 'Ã' + height + '-Gitter: ' + tooLong.join(', ') };
+    }
+
+    var sorted = words.slice().sort(function (a, b) { return b.length - a.length; });
+    var result = null;
+    for (var t = 0; t < 10 && !result; t++) {
+      result = attempt(sorted, width, height, dirs, rng, 250, 300000);
+    }
+    if (!result) {
+      return { error: 'Die WÃ¶rter passen nicht ins Gitter. Gitter vergrÃ¶Ãern oder Wortliste verkleinern.' };
+    }
+
+    /* Restfelder auffÃ¼llen: 30 % Buchstaben aus dem Wortgut (mehr TÃ¤uschung),
+       sonst sprachtypische HÃ¤ufigkeit. */
+    var grid = result.grid;
+    var allLetters = words.join('');
+    for (var r = 0; r < height; r++) {
+      for (var c = 0; c < width; c++) {
+        if (!grid[r][c]) {
+          grid[r][c] = (rng() < 0.3 && allLetters.length)
+            ? allLetters[(rng() * allLetters.length) | 0]
+            : FREQ[(rng() * FREQ.length) | 0];
+        }
+      }
+    }
+
+    /* Platzierungen auf die Eingabereihenfolge der WÃ¶rter mappen.
+     * Vertrag: words = String-Liste (Eingabereihenfolge),
+     *          placements = Objekte {word,r,c,dr,dc}. */
+    var byWord = {};
+    result.placements.forEach(function (p) { byWord[p.word] = p; });
+    return {
+      width: width,
+      height: height,
+      directions: directions,
+      grid: grid.map(function (row) { return row.join(''); }),
+      words: words,
+      placements: words.map(function (w) {
+        var p = byWord[w];
+        return { word: w, r: p.r, c: p.c, dr: p.dr, dc: p.dc };
+      })
+    };
+  }
+
+  var api = { generate: generate, normalizeWord: normalizeWord, mulberry32: mulberry32, activeDirs: activeDirs };
+  global.SuchselGen = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+'use strict';
+
+/* ================= Storage (IndexedDB, Fallback: Memory) ================= */
+var DB_NAME = 'suchsel-db', DB_VERSION = 1;
+var dbPromise = null, useMem = false;
+var mem = { puzzles: new Map(), progress: new Map() };
+
+function openDB() {
+  if (dbPromise || useMem) return dbPromise;
+  if (!window.indexedDB) { useMem = true; return null; }
+  dbPromise = new Promise(function (resolve, reject) {
+    var req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = function () {
+      var db = req.result;
+      if (!db.objectStoreNames.contains('puzzles')) db.createObjectStore('puzzles', { keyPath: 'id' });
+      if (!db.objectStoreNames.contains('progress')) db.createObjectStore('progress', { keyPath: 'puzzleId' });
+    };
+    req.onsuccess = function () { resolve(req.result); };
+    req.onerror = function () { reject(req.error); };
+  }).catch(function (e) { useMem = true; dbPromise = null; return null; });
+  return dbPromise;
+}
+function txDone(t) { return new Promise(function (res, rej) { t.oncomplete = function () { res(); }; t.onerror = function () { rej(t.error); }; }); }
+
+async function storePut(name, value) {
+  if (useMem) { mem[name].set(value.id || value.puzzleId, value); return; }
+  var db = await openDB();
+  return txDone(db.transaction(name, 'readwrite').objectStore(name).put(value));
+}
+async function storeGet(name, key) {
+  if (useMem) return mem[name].get(key);
+  var db = await openDB();
+  return new Promise(function (res, rej) {
+    var rq = db.transaction(name).objectStore(name).get(key);
+    rq.onsuccess = function () { res(rq.result); };
+    rq.onerror = function () { rej(rq.error); };
+  });
+}
+async function storeGetAll(name) {
+  if (useMem) return Array.from(mem[name].values());
+  var db = await openDB();
+  return new Promise(function (res, rej) {
+    var rq = db.transaction(name).objectStore(name).getAll();
+    rq.onsuccess = function () { res(rq.result || []); };
+    rq.onerror = function () { rej(rq.error); };
+  });
+}
+async function storeDelete(name, key) {
+  if (useMem) { mem[name].delete(key); return; }
+  var db = await openDB();
+  return txDone(db.transaction(name, 'readwrite').objectStore(name).delete(key));
+}
+
+/* ================= Hilfsfunktionen ================= */
+function uuid() {
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    var r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+var $ = function (id) { return document.getElementById(id); };
+var toastTimer = null;
+function toast(msg, ms) {
+  var t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { t.classList.remove('show'); }, ms || 1800);
+}
+function fmtDate(ts) {
+  try { return new Date(ts).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }); }
+  catch (e) { return ''; }
+}
+var COLORS = ['#e11d48', '#2563eb', '#059669', '#d97706', '#7c3aed', '#0d9488', '#db2777', '#4f46e5', '#65a30d', '#b45309'];
+
+/* ================= Bottom-Sheet ================= */
+function openSheet(title, actions) {
+  $('sheet-title').textContent = title;
+  var box = $('sheet-actions'); box.innerHTML = '';
+  actions.forEach(function (a) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'btn' + (a.danger ? ' danger' : (a.plain ? ' plain' : ''));
+    b.textContent = a.label;
+    b.addEventListener('click', function () { closeSheet(); a.onClick(); });
+    box.appendChild(b);
+  });
+  $('sheet-backdrop').classList.add('show');
+  $('sheet').classList.add('show');
+}
+function closeSheet() {
+  $('sheet-backdrop').classList.remove('show');
+  $('sheet').classList.remove('show');
+}
+$('sheet-backdrop').addEventListener('click', closeSheet);
+
+/* ================= PrÃ¤ferenzen (localStorage) ================= */
+var PREF_KEY = 'suchsel-prefs';
+function savePrefs() {
+  try {
+    localStorage.setItem(PREF_KEY, JSON.stringify({
+      words: $('words').value, width: $('in-width').value, height: $('in-height').value,
+      target: $('in-target').value, h: $('dir-h').checked, v: $('dir-v').checked,
+      d: $('dir-d').checked, r: $('dir-r').checked
+    }));
+  } catch (e) { /* privat z. B. im Privatmodus â ignorieren */ }
+}
+function loadPrefs() {
+  try {
+    var p = JSON.parse(localStorage.getItem(PREF_KEY) || 'null');
+    if (!p) return;
+    if (p.words != null) $('words').value = p.words;
+    if (p.width) $('in-width').value = p.width;
+    if (p.height) $('in-height').value = p.height;
+    if (p.target) $('in-target').value = p.target;
+    $('dir-h').checked = p.h !== false; $('dir-v').checked = p.v !== false;
+    $('dir-d').checked = p.d !== false; $('dir-r').checked = p.r !== false;
+  } catch (e) { /* ignore */ }
+}
+
+/* ================= Wortlisten-Eingabe ================= */
+function parseWords(text) {
+  return String(text || '').split(/[\n,;]+/)
+    .map(function (s) { return s.trim(); })
+    .filter(function (s) { return s.length > 0; });
+}
+function updateWordCount() {
+  var n = parseWords($('words').value).length;
+  $('word-count').textContent = n + (n === 1 ? ' Wort' : ' WÃ¶rter');
+}
+$('words').addEventListener('input', function () { updateWordCount(); savePrefs(); });
+
+/* ================= RÃ¤tsel-Liste ================= */
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(function (s) { s.classList.remove('active'); });
+  $(id).classList.add('active');
+}
+
+async function renderList() {
+  var list = $('puzzle-list');
+  var puzzles = await storeGetAll('puzzles');
+  puzzles.sort(function (a, b) { return b.createdAt - a.createdAt; });
+  var progressAll = await storeGetAll('progress');
+  var progById = {};
+  progressAll.forEach(function (p) { progById[p.puzzleId] = p; });
+
+  list.innerHTML = '';
+  if (!puzzles.length && !$('new-form').classList.contains('open')) {
+    list.innerHTML = '<div class="empty">Noch keine RÃ¤tsel.<br>Tippe oben rechts auf âï¼ Neues RÃ¤tselâ.</div>';
+  }
+  puzzles.forEach(function (pz) {
+    fixLegacyName(pz);
+    var prog = progById[pz.id];
+    var total = pz.puzzle.words.length;
+    var found = prog ? prog.found.filter(function (m) { return !m.revealed; }).length : 0;
+    var done = prog && prog.done;
+    var card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML =
+      '<div class="card-main">' +
+        '<div class="card-title">' + escapeHtml(pz.name) + (done ? '<span class="badge-done">â gelÃ¶st</span>' : '') + '</div>' +
+        '<div class="card-meta">' + pz.puzzle.height + ' Ã ' + pz.puzzle.width + ' Â· ' + total + ' WÃ¶rter Â· erstellt ' + fmtDate(pz.createdAt) + '</div>' +
+        '<div class="bar"><i style="width:' + Math.round(found / total * 100) + '%"></i></div>' +
+        '<div class="card-sub">' + found + ' von ' + total + ' gefunden</div>' +
+      '</div>' +
+      '<button type="button" class="icon-btn del" title="LÃ¶schen">ð</button>';
+    card.addEventListener('click', function () { startPlay(pz.id); });
+    card.querySelector('.del').addEventListener('click', function (e) {
+      e.stopPropagation();
+      openSheet('RÃ¤tsel â' + pz.name + 'â lÃ¶schen?', [
+        { label: 'LÃ¶schen', danger: true, onClick: function () {
+            storeDelete('puzzles', pz.id); storeDelete('progress', pz.id);
+            toast('RÃ¤tsel gelÃ¶scht'); renderList();
+          } },
+        { label: 'Abbrechen', plain: true, onClick: function () {} }
+      ]);
+    });
+    list.appendChild(card);
+  });
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+/* Migriert DatensÃ¤tze aus der Zeit des Wort-Objekt-Bugs:
+   words war ein Array von Platzierungs-Objekten â jetzt Strings + placements. */
+function fixLegacyName(rec) {
+  if (!rec || !rec.puzzle) return;
+  var ws = rec.puzzle.words;
+  if (Array.isArray(ws) && ws.length && ws[0] && typeof ws[0] === 'object' && typeof ws[0].word === 'string') {
+    rec.puzzle.placements = ws.map(function (p) { return { word: p.word, r: p.r, c: p.c, dr: p.dr, dc: p.dc }; });
+    rec.puzzle.words = rec.puzzle.placements.map(function (p) { return p.word; });
+    if (!rec.name || rec.name.indexOf('[object Object]') === 0) {
+      rec.name = rec.puzzle.words[0] + (rec.puzzle.words.length > 1 ? ' + ' + (rec.puzzle.words.length - 1) + ' weitere' : '');
+    }
+    storePut('puzzles', rec).catch(function () {});
+  }
+}
+
+/* ---- Formular ---- */
+$('btn-new').addEventListener('click', function () {
+  $('new-form').classList.toggle('open');
+  $('puzzle-list').style.display = $('new-form').classList.contains('open') ? 'none' : '';
+  if ($('new-form').classList.contains('open')) { $('words').focus(); }
+  renderList();
+});
+$('btn-cancel-form').addEventListener('click', function () {
+  $('new-form').classList.remove('open');
+  $('puzzle-list').style.display = '';
+  $('form-error').style.display = 'none';
+  renderList();
+});
+$('new-form').addEventListener('submit', function (e) {
+  e.preventDefault();
+  createPuzzle();
+});
+
+async function createPuzzle() {
+  var err = $('form-error');
+  err.style.display = 'none';
+  var width = parseInt($('in-width').value, 10) || 50;
+  var height = parseInt($('in-height').value, 10) || 13;
+  var target = parseInt($('in-target').value, 10) || 15;
+  if (width < 4 || width > 80 || height < 4 || height > 80) {
+    err.textContent = 'GittergrÃ¶Ãe muss zwischen 4Ã4 und 80Ã80 liegen.'; err.style.display = 'block'; return;
+  }
+  var pool = parseWords($('words').value);
+  if (!pool.length) {
+    err.textContent = 'Bitte mindestens ein Wort eingeben.'; err.style.display = 'block'; return;
+  }
+  /* Bei mehr WÃ¶rtern als gewÃ¼nscht: zufÃ¤llige Auswahl treffen. */
+  var chosen = pool;
+  if (pool.length > target) {
+    chosen = pool.slice();
+    for (var i = chosen.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = chosen[i]; chosen[i] = chosen[j]; chosen[j] = tmp;
+    }
+    chosen = chosen.slice(0, target);
+  }
+  var directions = {
+    horizontal: $('dir-h').checked, vertical: $('dir-v').checked,
+    diagonal: $('dir-d').checked, reversed: $('dir-r').checked
+  };
+  var puzzle = SuchselGen.generate({
+    width: width, height: height, words: chosen, directions: directions,
+    seed: Math.floor(Math.random() * 2147483647)
+  });
+  if (puzzle.error) { err.textContent = puzzle.error; err.style.display = 'block'; return; }
+
+  savePrefs();
+  var firstName = String(puzzle.words[0]);
+  var name = firstName + (puzzle.words.length > 1 ? ' + ' + (puzzle.words.length - 1) + ' weitere' : '');
+  var rec = {
+    id: uuid(), name: name, createdAt: Date.now(),
+    params: { width: width, height: height, target: target, directions: directions },
+    puzzle: puzzle
+  };
+  try { await storePut('puzzles', rec); }
+  catch (e2) { err.textContent = 'Speichern fehlgeschlagen: ' + e2; err.style.display = 'block'; return; }
+
+  $('new-form').classList.remove('open');
+  $('puzzle-list').style.display = '';
+  await renderList();
+  startPlay(rec.id);
+}
+
+/* ================= Spiel ================= */
+var current = null;          // { rec, prog, foundSet:Set, revealedSet:Set }
+var cell = 20, pad = 12, dpr = 1, fitCell = 20;
+var zoom = 1, tx = 0, ty = 0;
+var selAnchor = null, selPath = [];
+var panLast = null;
+var pointers = new Map();
+var pinch = null;
+var needsLayout = false, needDraw = false;
+var boardCanvas = $('board'), boardCtx = boardCanvas.getContext('2d');
+var fxCanvas = $('fx');
+
+function foundMarks() { return current.prog.found; }
+function foundSet() { return current.foundSet; }
+
+async function startPlay(id) {
+  var rec = await storeGet('puzzles', id);
+  if (!rec) { toast('RÃ¤tsel nicht gefunden'); return; }
+  fixLegacyName(rec);
+  var prog = await storeGet('progress', id);
+  if (!prog) prog = { puzzleId: id, found: [], hints: [], done: false, updated: Date.now() };
+  current = {
+    rec: rec, prog: prog,
+    foundSet: new Set(prog.found.map(function (m) { return m.word; })),
+    revealedSet: new Set(prog.found.filter(function (m) { return m.revealed; }).map(function (m) { return m.word; }))
+  };
+  zoom = 1; tx = 0; ty = 0; selAnchor = null; selPath = []; pointers.clear(); pinch = null;
+  $('play-title').textContent = rec.name;
+  buildChips();
+  showScreen('screen-play');
+  $('board-overlay').classList.remove('show');
+  requestAnimationFrame(function () { layoutBoard(); updateHeader(); });
+}
+
+function buildChips() {
+  var box = $('chips'); box.innerHTML = '';
+  current.rec.puzzle.words.forEach(function (w) {
+    var chip = document.createElement('span');
+    chip.className = 'chip'; chip.dataset.word = w; chip.textContent = w;
+    box.appendChild(chip);
+  });
+  updateChips();
+}
+function updateChips() {
+  document.querySelectorAll('#chips .chip').forEach(function (chip) {
+    var w = chip.dataset.word;
+    chip.classList.toggle('found', foundSet().has(w) && !current.revealedSet.has(w));
+    chip.classList.toggle('revealed', current.revealedSet.has(w));
+    chip.classList.toggle('hinted', current.prog.hints.some(function (h) { return h.word === w; }));
+  });
+}
+function updateHeader() {
+  var total = current.rec.puzzle.words.length;
+  $('play-progress').textContent = foundSet().size + ' / ' + total;
+}
+
+/* ---- Layout & Zeichnung ---- */
+function requestLayout() {
+  if (needsLayout) return;
+  needsLayout = true;
+  requestAnimationFrame(function () { needsLayout = false; layoutBoard(); });
+}
+function clampPan() {
+  var wrap = $('board-wrap');
+  var cw = boardCanvas.clientWidth, ch = boardCanvas.clientHeight;
+  tx = cw <= wrap.clientWidth ? Math.round((wrap.clientWidth - cw) / 2)
+                              : Math.min(0, Math.max(wrap.clientWidth - cw, tx));
+  ty = ch <= wrap.clientHeight ? Math.round((wrap.clientHeight - ch) / 2)
+                               : Math.min(0, Math.max(wrap.clientHeight - ch, ty));
+  boardCanvas.style.left = tx + 'px';
+  boardCanvas.style.top = ty + 'px';
+}
+function layoutBoard() {
+  if (!current) return;
+  var wrap = $('board-wrap');
+  var W = wrap.clientWidth, H = wrap.clientHeight;
+  if (!W || !H) return;
+  var pz = current.rec.puzzle;
+  fitCell = Math.max(3, Math.floor(Math.min((W - 8) / pz.width, (H - 8) / pz.height)));
+  var zoomMax = Math.min(6, 6000 / Math.max(1, (pz.width * fitCell * (window.devicePixelRatio || 1))));
+  zoom = Math.min(zoom, zoomMax);
+  cell = Math.max(3, Math.round(fitCell * zoom));
+  pad = Math.round(cell * 0.5) + 2;
+  var cssW = pad * 2 + cell * pz.width;
+  var cssH = pad * 2 + cell * pz.height;
+  dpr = Math.min(window.devicePixelRatio || 1, 3);
+  boardCanvas.style.width = cssW + 'px';
+  boardCanvas.style.height = cssH + 'px';
+  boardCanvas.width = Math.min(9000, Math.round(cssW * dpr));
+  boardCanvas.height = Math.min(9000, Math.round(cssH * dpr));
+  clampPan();
+  drawBoard();
+}
+function requestDraw() {
+  if (needDraw) return;
+  needDraw = true;
+  requestAnimationFrame(function () { needDraw = false; drawBoard(); });
+}
+
+function drawBoard() {
+  if (!current) return;
+  var pz = current.rec.puzzle;
+  var W = boardCanvas.clientWidth, H = boardCanvas.clientHeight;
+  boardCtx.setTransform(boardCanvas.width / W, 0, 0, boardCanvas.height / H, 0, 0);
+  boardCtx.fillStyle = '#ffffff';
+  boardCtx.fillRect(0, 0, W, H);
+
+  /* Gitterlinien (nur wenn ausreichend Platz) */
+  if (cell >= 14) {
+    boardCtx.strokeStyle = '#e5e7eb';
+    boardCtx.lineWidth = 1;
+    boardCtx.beginPath();
+    for (var c = 0; c <= pz.width; c++) { var x = pad + c * cell + .5; boardCtx.moveTo(x, pad); boardCtx.lineTo(x, pad + pz.height * cell); }
+    for (var r = 0; r <= pz.height; r++) { var y = pad + r * cell + .5; boardCtx.moveTo(pad, y); boardCtx.lineTo(pad + pz.width * cell, y); }
+    boardCtx.stroke();
+  }
+
+  /* Buchstaben */
+  boardCtx.fillStyle = '#1f2937';
+  boardCtx.font = '600 ' + Math.max(7, Math.round(cell * 0.58)) + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  boardCtx.textAlign = 'center';
+  boardCtx.textBaseline = 'middle';
+  for (var r2 = 0; r2 < pz.height; r2++) {
+    var row = pz.grid[r2];
+    for (var c2 = 0; c2 < pz.width; c2++) {
+      boardCtx.fillText(row.charAt(c2), pad + c2 * cell + cell / 2, pad + r2 * cell + cell / 2 + cell * 0.03);
+    }
+  }
+
+  /* Tipps: gestrichelter Kreis um den ersten Buchstaben */
+  boardCtx.save();
+  boardCtx.strokeStyle = '#f59e0b';
+  boardCtx.lineWidth = Math.max(2, cell * 0.09);
+  boardCtx.setLineDash([cell * 0.18, cell * 0.14]);
+  current.prog.hints.forEach(function (h) {
+    boardCtx.beginPath();
+    boardCtx.ellipse(pad + h.c * cell + cell / 2, pad + h.r * cell + cell / 2, cell * 0.46, cell * 0.46, 0, 0, Math.PI * 2);
+    boardCtx.stroke();
+  });
+  boardCtx.restore();
+
+  /* Gefundene WÃ¶rter: Ellipsen wie auf Papier */
+  foundMarks().forEach(function (m) {
+    var cs = m.cells;
+    var x0 = pad + cs[0].c * cell + cell / 2, y0 = pad + cs[0].r * cell + cell / 2;
+    var x1 = pad + cs[cs.length - 1].c * cell + cell / 2, y1 = pad + cs[cs.length - 1].r * cell + cell / 2;
+    var cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    var len = Math.max(Math.hypot(x1 - x0, y1 - y0), cell * 0.8);
+    var a = len / 2 + cell * 0.30;
+    var b = cell * 0.62;
+    boardCtx.save();
+    boardCtx.strokeStyle = m.revealed ? '#94a3b8' : m.color;
+    boardCtx.lineWidth = Math.max(2.5, cell * 0.13);
+    if (m.revealed) boardCtx.setLineDash([cell * 0.3, cell * 0.22]);
+    boardCtx.beginPath();
+    boardCtx.ellipse(cx, cy, a, b, Math.atan2(y1 - y0, x1 - x0) + (m.rot || 0), 0, Math.PI * 2);
+    boardCtx.stroke();
+    boardCtx.restore();
+  });
+
+  /* Aktuelle Auswahl: halbtransparente Route Ã¼ber die Zellmittelpunkte */
+  if (selPath.length > 1) {
+    boardCtx.save();
+    boardCtx.strokeStyle = 'rgba(59,130,246,.30)';
+    boardCtx.lineWidth = cell * 0.92;
+    boardCtx.lineCap = 'round';
+    boardCtx.lineJoin = 'round';
+    boardCtx.beginPath();
+    selPath.forEach(function (p, i) {
+      var x = pad + p.c * cell + cell / 2, y = pad + p.r * cell + cell / 2;
+      if (i === 0) boardCtx.moveTo(x, y); else boardCtx.lineTo(x, y);
+    });
+    boardCtx.stroke();
+    boardCtx.restore();
+  }
+}
+
+/* ---- Pointer-Gesten: Streichen = markieren, 2 Finger = Zoom/Pan ---- */
+function evtPoint(e) {
+  var wrap = $('board-wrap').getBoundingClientRect();
+  return { x: e.clientX - wrap.left, y: e.clientY - wrap.top };
+}
+function cellAt(p) {
+  var pz = current.rec.puzzle;
+  var x = p.x - tx - pad, y = p.y - ty - pad;
+  var c = Math.max(0, Math.min(pz.width - 1, Math.floor(x / cell)));
+  var r = Math.max(0, Math.min(pz.height - 1, Math.floor(y / cell)));
+  return { r: r, c: c };
+}
+/* KÃ¼rzeste gerade Linie (horiz/vert/diag) von Anker zu Punkt â oder null. */
+function snapLine(a, b) {
+  var dr = b.r - a.r, dc = b.c - a.c;
+  var adr = Math.abs(dr), adc = Math.abs(dc);
+  var n;
+  if (adr === adc) n = adr + 1;                       // Diagonale
+  else if (dr === 0) n = adc + 1;                     // Horizontal
+  else if (dc === 0) n = adr + 1;                     // Vertikal
+  else return null;
+  var sr = Math.sign(dr), sc = Math.sign(dc);
+  var cells = [];
+  for (var k = 0; k < n; k++) {
+    cells.push({
+      r: a.r + (dr === 0 ? 0 : sr * k),
+      c: a.c + (dc === 0 ? 0 : sc * k)
+    });
+  }
+  return cells;
+}
+
+var lastTap = { t: 0, x: 0, y: 0 };
+
+boardCanvas.addEventListener('pointerdown', function (e) {
+  if (!current) return;
+  e.preventDefault();
+  try { boardCanvas.setPointerCapture(e.pointerId); } catch (err) {}
+  pointers.set(e.pointerId, evtPoint(e));
+  if (pointers.size === 1) {
+    if (!current.prog.done && !current.revealedSet.size) {
+      selAnchor = cellAt(evtPoint(e));
+      selPath = [selAnchor];
+      requestDraw();
+    } else {
+      panLast = evtPoint(e);
+      panLast.tx = tx; panLast.ty = ty;
+    }
+  } else if (pointers.size === 2) {
+    selAnchor = null; selPath = []; panLast = null;
+    var pts = Array.from(pointers.values());
+    pinch = {
+      d0: Math.max(1, Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y)),
+      mid0: { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 },
+      scale0: zoom, tx0: tx, ty0: ty
+    };
+    requestDraw();
+  }
+});
+boardCanvas.addEventListener('pointermove', function (e) {
+  if (!current || !pointers.has(e.pointerId)) return;
+  e.preventDefault();
+  pointers.set(e.pointerId, evtPoint(e));
+  if (pointers.size === 2 && pinch) {
+    var pts = Array.from(pointers.values());
+    var d1 = Math.max(1, Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y));
+    var mid1 = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
+    var pz = current.rec.puzzle;
+    var zoomMax = Math.min(6, 6000 / Math.max(1, (pz.width * fitCell * (window.devicePixelRatio || 1))));
+    var newZoom = Math.max(1, Math.min(zoomMax, pinch.scale0 * (d1 / pinch.d0)));
+    var k = newZoom / pinch.scale0;
+    tx = mid1.x - (pinch.mid0.x - pinch.tx0) * k;
+    ty = mid1.y - (pinch.mid0.y - pinch.ty0) * k;
+    zoom = newZoom;
+    requestLayout();
+  } else if (pointers.size === 1 && panLast) {
+    tx = panLast.tx + (evtPoint(e).x - panLast.x);
+    ty = panLast.ty + (evtPoint(e).y - panLast.y);
+    clampPan();
+  } else if (pointers.size === 1 && selAnchor) {
+    var snapped = snapLine(selAnchor, cellAt(evtPoint(e)));
+    if (snapped) {
+      var changed = snapped.length !== selPath.length ||
+        (snapped.length && (snapped[0].r !== selPath[0].r || snapped[0].c !== selPath[0].c ||
+          snapped[snapped.length - 1].r !== selPath[selPath.length - 1].r ||
+          snapped[snapped.length - 1].c !== selPath[selPath.length - 1].c));
+      if (changed) { selPath = snapped; requestDraw(); }
+    }
+  }
+});
+function pointerEnd(e) {
+  if (!current || !pointers.has(e.pointerId)) return;
+  pointers.delete(e.pointerId);
+  if (pointers.size < 2) pinch = null;
+  if (pointers.size === 1 && current && (current.prog.done || current.revealedSet.size)) {
+    var rp = Array.from(pointers.values())[0];
+    panLast = { x: rp.x, y: rp.y, tx: tx, ty: ty };
+  }
+  if (pointers.size === 0) {
+    panLast = null;
+    if (selAnchor) {
+      var moved = selPath.length > 1;
+      var p = evtPoint(e);
+      /* Doppel-Tipp = Zoom umschalten */
+      if (!moved) {
+        var now = Date.now();
+        if (now - lastTap.t < 320 && Math.hypot(p.x - lastTap.x, p.y - lastTap.y) < 30) {
+          toggleZoom();
+          lastTap = { t: 0, x: 0, y: 0 };
+          selAnchor = null; selPath = []; requestDraw();
+          return;
+        }
+        lastTap = { t: now, x: p.x, y: p.y };
+      }
+      if (moved && !current.prog.done) checkWord(selPath.slice());
+      selAnchor = null; selPath = [];
+      requestDraw();
+    }
+  }
+}
+boardCanvas.addEventListener('pointerup', pointerEnd);
+boardCanvas.addEventListener('pointercancel', pointerEnd);
+document.addEventListener('gesturestart', function (e) {
+  if (e.target === boardCanvas) e.preventDefault();
+});
+function toggleZoom() {
+  zoom = zoom > 1.05 ? 1 : Math.min(2.5, Math.max(2, zoom * 2));
+  requestLayout();
+}
+/* Desktop: Mausrad-Zoom */
+boardCanvas.addEventListener('wheel', function (e) {
+  if (!current) return;
+  e.preventDefault();
+  var pz = current.rec.puzzle;
+  var zoomMax = Math.min(6, 6000 / Math.max(1, (pz.width * fitCell * (window.devicePixelRatio || 1))));
+  zoom = Math.max(1, Math.min(zoomMax, zoom * (1 - e.deltaY * 0.0012)));
+  requestLayout();
+}, { passive: false });
+
+/* ---- Wort-PrÃ¼fung & Fortschritt ---- */
+function wordMap() {
+  var m = {};
+  current.rec.puzzle.words.forEach(function (w) { m[w] = w; });
+  return m;
+}
+function checkWord(cells) {
+  if (cells.length < 2 || current.prog.done) return;
+  var pz = current.rec.puzzle;
+  var s = cells.map(function (p) { return pz.grid[p.r].charAt(p.c); }).join('');
+  var map = wordMap();
+  var hit = map[s] ? s : (map[s.split('').reverse().join('')] ? s.split('').reverse().join('') : null);
+  if (!hit) return;
+  if (foundSet().has(hit)) { toast(hit + ' ist schon gefunden'); return; }
+
+  var rot = ((foundMarks().length * 137) % 7 - 3) * 0.02;
+  var mark = {
+    word: hit, cells: cells, color: COLORS[foundMarks().length % COLORS.length],
+    rot: rot, revealed: false
+  };
+  current.prog.found.push(mark);
+  foundSet().add(hit);
+  current.prog.updated = Date.now();
+  storePut('progress', current.prog).catch(function () { toast('Achtung: Fortschritt konnte nicht gespeichert werden'); });
+
+  updateChips(); updateHeader(); requestDraw();
+  toast('ð ' + hit + ' gefunden!');
+  if (foundSet().size === pz.words.length) {
+    current.prog.done = true;
+    storePut('progress', current.prog).catch(function () {});
+    confetti();
+    setTimeout(function () {
+      $('overlay-title').textContent = 'ð GelÃ¶st! Alle ' + pz.words.length + ' WÃ¶rter gefunden.';
+      $('board-overlay').classList.add('show');
+    }, 1300);
+  }
+}
+
+async function persistProgress() {
+  if (!current) return;
+  current.prog.updated = Date.now();
+  try { await storePut('progress', current.prog); } catch (e) { toast('Speichern fehlgeschlagen'); }
+}
+
+/* ---- MenÃ¼-Aktionen ---- */
+$('btn-menu').addEventListener('click', function () {
+  openSheet(current ? current.rec.name : '', [
+    { label: 'ð¡ Tipp zeigen', onClick: giveHint },
+    { label: 'LÃ¶sung aufdecken (aufgeben)', danger: true, onClick: revealAll },
+    { label: 'Fortschritt zurÃ¼cksetzen', danger: true, onClick: resetProgress },
+    { label: 'RÃ¤tsel lÃ¶schen', danger: true, onClick: deleteCurrent },
+    { label: 'Abbrechen', plain: true, onClick: function () {} }
+  ]);
+});
+function giveHint() {
+  if (!current || current.prog.done) return;
+  var pz = current.rec.puzzle;
+  var rest = pz.placements.map(function (p) { return p.word; }).filter(function (w) { return !foundSet().has(w); });
+  if (!rest.length) return;
+  var w = rest[Math.floor(Math.random() * rest.length)];
+  var placement = pz.placements.find(function (x) { return x.word === w; });
+  var hint = { word: w, r: placement.r, c: placement.c };
+  if (!current.prog.hints.some(function (h) { return h.word === w; })) {
+    current.prog.hints.push(hint);
+    persistProgress();
+    updateChips();
+  }
+  /* Auf den Tipp-Buchstaben hinschieben, falls gezoomt */
+  zoom = Math.max(zoom, 1);
+  tx = 0; ty = 0;
+  clampPan();
+  requestLayout();
+  toast('ð¡ Tipp: â' + w + 'â beginnt im gelb gestrichelten Kreis');
+}
+function revealAll() {
+  if (!current || current.prog.done) return;
+  var pz = current.rec.puzzle;
+  var placementsByWord = {};
+  pz.placements.forEach(function (p) { placementsByWord[p.word] = p; });
+  pz.words.forEach(function (w) {
+    if (foundSet().has(w)) return;
+    var p = placementsByWord[w];
+    var cells = [];
+    for (var k = 0; k < w.length; k++) cells.push({ r: p.r + p.dr * k, c: p.c + p.dc * k });
+    current.prog.found.push({
+      word: w, cells: cells, color: COLORS[current.prog.found.length % COLORS.length],
+      rot: ((current.prog.found.length * 137) % 7 - 3) * 0.02, revealed: true
+    });
+    foundSet().add(w);
+    current.revealedSet.add(w);
+  });
+  current.prog.done = true;
+  persistProgress();
+  updateChips(); updateHeader(); requestDraw();
+  toast('LÃ¶sung aufgedeckt');
+}
+function resetProgress() {
+  if (!current) return;
+  current.prog = { puzzleId: current.rec.id, found: [], hints: [], done: false, updated: Date.now() };
+  current.foundSet = new Set();
+  current.revealedSet = new Set();
+  persistProgress();
+  $('board-overlay').classList.remove('show');
+  updateChips(); updateHeader(); requestLayout();
+  toast('Fortschritt zurÃ¼ckgesetzt');
+}
+function deleteCurrent() {
+  if (!current) return;
+  var id = current.rec.id;
+  current = null;
+  storeDelete('puzzles', id);
+  storeDelete('progress', id);
+  showScreen('screen-puzzles');
+  toast('RÃ¤tsel gelÃ¶scht');
+  renderList();
+}
+$('btn-back').addEventListener('click', function () {
+  current = null;
+  showScreen('screen-puzzles');
+  renderList();
+});
+$('btn-overlay-list').addEventListener('click', function () {
+  current = null;
+  showScreen('screen-puzzles');
+  renderList();
+});
+$('btn-overlay-again').addEventListener('click', function () {
+  resetProgress();
+});
+
+/* ---- Konfetti (klein & lokal) ---- */
+function confetti() {
+  var wrap = $('board-wrap');
+  fxCanvas.width = wrap.clientWidth * dpr;
+  fxCanvas.height = wrap.clientHeight * dpr;
+  fxCanvas.style.width = wrap.clientWidth + 'px';
+  fxCanvas.style.height = wrap.clientHeight + 'px';
+  var ctx = fxCanvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  var parts = [];
+  for (var i = 0; i < 90; i++) {
+    parts.push({
+      x: wrap.clientWidth / 2, y: wrap.clientHeight * 0.4,
+      vx: (Math.random() - .5) * 9, vy: -Math.random() * 9 - 3,
+      s: 4 + Math.random() * 5, c: COLORS[i % COLORS.length],
+      rot: Math.random() * Math.PI, vr: (Math.random() - .5) * .3, life: 1
+    });
+  }
+  var start = Date.now();
+  (function frame() {
+    var t = (Date.now() - start) / 1400;
+    ctx.clearRect(0, 0, wrap.clientWidth, wrap.clientHeight);
+    if (t >= 1) return;
+    parts.forEach(function (p) {
+      p.x += p.vx; p.y += p.vy; p.vy += 0.25; p.rot += p.vr;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+      ctx.globalAlpha = 1 - t;
+      ctx.fillStyle = p.c;
+      ctx.fillRect(-p.s / 2, -p.s / 2, p.s, p.s * 0.6);
+      ctx.restore();
+    });
+    requestAnimationFrame(frame);
+  })();
+}
+
+/* ---- Sonstiges ---- */
+window.addEventListener('resize', function () { if (current) requestLayout(); });
+window.addEventListener('orientationchange', function () { setTimeout(function () { if (current) requestLayout(); }, 350); });
+document.addEventListener('visibilitychange', function () { if (!document.hidden && current) requestLayout(); });
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () {});
+
+loadPrefs();
+updateWordCount();
+openDB().finally(function () { renderList(); });
+</script>
+</body>
+</html>

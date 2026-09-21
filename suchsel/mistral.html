@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
+    <title>Wortsuchrätsel - Mistral</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            touch-action: none;
+        }
+        #app { display: flex; flex-direction: column; height: 100vh; width: 100vw; }
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 10px;
+            text-align: center;
+            font-size: 18px;
+        }
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            flex-direction: row;
+        }
+        @media (max-width: 768px) { .main-container { flex-direction: column; } }
+        #word-list-container {
+            width: 200px;
+            min-width: 150px;
+            background: #ecf0f1;
+            padding: 10px;
+            overflow-y: auto;
+            border-right: 2px solid #bdc3c7;
+        }
+        @media (max-width: 768px) {
+            #word-list-container {
+                width: 100%;
+                max-height: 30%;
+                border-right: none;
+                border-bottom: 2px solid #bdc3c7;
+            }
+        }
+        #word-list { display: flex; flex-direction: column; gap: 5px; }
+        .word-item {
+            padding: 8px 12px;
+            background: #dfe6e9;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+            text-align: center;
+        }
+        .word-item.found { background: #2ecc71; color: white; text-decoration: line-through; }
+        .word-item:hover { background: #3498db; color: white; }
+        .canvas-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background: #ecf0f1;
+        }
+        #grid-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            cursor: crosshair;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        #zoom-controls {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            display: flex;
+            gap: 5px;
+            z-index: 100;
+        }
+        #zoom-controls button {
+            width: 40px;
+            height: 40px;
+            border: none;
+            background: rgba(255,255,255,0.8);
+            border-radius: 50%;
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #zoom-controls button:hover { background: rgba(255,255,255,1); }
+        .controls {
+            background: #2c3e50;
+            padding: 10px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .controls button {
+            padding: 8px 16px;
+            border: none;
+            background: #3498db;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .controls button:hover { background: #2980b9; }
+        #puzzle-info {
+            font-size: 12px;
+            color: #7f8c8d;
+            text-align: center;
+            padding: 5px;
+            background: #ecf0f1;
+        }
+        #modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        #modal {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            max-width: 90%;
+            max-height: 80%;
+            overflow: auto;
+        }
+        #modal h3 { margin-bottom: 15px; }
+        #modal input { width: 100%; padding: 8px; margin: 5px 0; border: 1px solid #ddd; border-radius: 4px; }
+        #modal button { padding: 10px 20px; margin: 5px; border: none; background: #3498db; color: white; border-radius: 4px; cursor: pointer; }
+        #saved-puzzles-list { display: flex; flex-direction: column; gap: 5px; margin-top: 10px; }
+        .saved-puzzle-item { padding: 8px; background: #f8f9fa; border-radius: 4px; cursor: pointer; }
+        .saved-puzzle-item:hover { background: #e9ecef; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="header">Wortsuchrätsel - Mistral</div>
+        <div class="main-container">
+            <div id="word-list-container">
+                <div id="puzzle-info">Rätsel: 15 Wörter | 13x50 Felder</div>
+                <div id="word-list"></div>
+            </div>
+            <div class="canvas-container">
+                <canvas id="grid-canvas"></canvas>
+                <div id="zoom-controls">
+                    <button id="zoom-out">-</button>
+                    <button id="zoom-reset">⟲</button>
+                    <button id="zoom-in">+</button>
+                </div>
+            </div>
+        </div>
+        <div class="controls">
+            <button id="new-puzzle">Neues Rätsel</button>
+            <button id="save-puzzle">Rätsel speichern</button>
+            <button id="load-puzzle">Rätsel laden</button>
+            <button id="clear-progress">Fortschritt zurücksetzen</button>
+        </div>
+    </div>
+    <div id="modal-overlay">
+        <div id="modal">
+            <h3 id="modal-title">Rätsel speichern</h3>
+            <div id="modal-content">
+                <input type="text" id="puzzle-name" placeholder="Name des Rätsels">
+                <button id="modal-save">Speichern</button>
+                <button id="modal-cancel">Abbrechen</button>
+                <div id="saved-puzzles-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const DEFAULT_ROWS = 13;
+        const DEFAULT_COLS = 50;
+        const DEFAULT_WORD_COUNT = 15;
+        const CELL_SIZE = 28;
+        const GRID_COLOR = '#2c3e50';
+        const TEXT_COLOR = '#2c3e50';
+        const SELECTION_COLOR = 'rgba(255, 0, 0, 0.4)';
+        const FOUND_ELLIPSE_COLOR = '#2ecc71';
+
+        let puzzle = { words: [], grid: [], wordPositions: {}, foundWords: new Set(), id: '' };
+        let selection = { start: null, end: null, cells: [] };
+        let isDrawing = false;
+        let zoom = 1;
+        let offsetX = 0, offsetY = 0;
+        let lastTouchDistance = 0;
+        let canvasWidth = 0, canvasHeight = 0;
+
+        const GERMAN_WORDS = [
+            'Apfel','Banane','Birne','Traube','Orange','Zitrone','Mango','Kiwi',
+            'Haus','Auto','Baum','Fluss','Berg','See','Wald','Stadt',
+            'Sonne','Mond','Stern','Wolke','Regen','Schnee','Wind',
+            'Katze','Hund','Maus','Vogel','Fisch','Schlange','Loewe','Tiger',
+            'Buch','Stift','Tisch','Stuhl','Lampe','Fenster','Tuer','Schluessel',
+            'Wasser','Feuer','Erde','Luft','Eis','Stein','Sand','Metall',
+            'Liebe','Freund','Familie','Glueck','Zeit','Leben','Hoffnung','Traum',
+            'Computer','Handy','Internet','Mail','Chat','Spiel','Musik','Kamera',
+            'Blume','Gras','Pflanze','Blatt','Wurzel','Samen','Frucht','Garten'
+        ];
+
+        const canvas = document.getElementById('grid-canvas');
+        const ctx = canvas.getContext('2d');
+        const wordListEl = document.getElementById('word-list');
+        const puzzleInfoEl = document.getElementById('puzzle-info');
+        const modalOverlay = document.getElementById('modal-overlay');
+        const modal = document.getElementById('modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalContent = document.getElementById('modal-content');
+
+        function init() {
+            generateNewPuzzle();
+            setupEventListeners();
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+        }
+
+        function resizeCanvas() {
+            const container = document.querySelector('.canvas-container');
+            canvasWidth = container.clientWidth;
+            canvasHeight = container.clientHeight;
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = canvasWidth * dpr;
+            canvas.height = canvasHeight * dpr;
+            canvas.style.width = canvasWidth + 'px';
+            canvas.style.height = canvasHeight + 'px';
+            ctx.scale(dpr, dpr);
+            drawGrid();
+        }
+
+        function setupEventListeners() {
+            canvas.addEventListener('mousedown', handleStart);
+            canvas.addEventListener('mousemove', handleMove);
+            canvas.addEventListener('mouseup', handleEnd);
+            canvas.addEventListener('mouseleave', handleEnd);
+            canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+            canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+            canvas.addEventListener('touchend', handleTouchEnd);
+            document.getElementById('new-puzzle').addEventListener('click', generateNewPuzzle);
+            document.getElementById('save-puzzle').addEventListener('click', showSaveModal);
+            document.getElementById('load-puzzle').addEventListener('click', showLoadModal);
+            document.getElementById('clear-progress').addEventListener('click', clearProgress);
+            document.getElementById('zoom-in').addEventListener('click', () => setZoom(zoom + 0.2));
+            document.getElementById('zoom-out').addEventListener('click', () => setZoom(zoom - 0.2));
+            document.getElementById('zoom-reset').addEventListener('click', () => setZoom(1));
+            document.getElementById('modal-save').addEventListener('click', saveCurrentPuzzle);
+            document.getElementById('modal-cancel').addEventListener('click', closeModal);
+            wordListEl.addEventListener('click', (e) => {
+                if (e.target.classList.contains('word-item')) {
+                    highlightWordInGrid(e.target.textContent);
+                }
+            });
+        }
+
+        function handleTouchStart(e) {
+            e.preventDefault();
+            if (e.touches.length === 1) {
+                const rect = canvas.getBoundingClientRect();
+                handleStartFromCoords(e.touches[0].clientX - rect.left, e.touches[0].clientY - rect.top);
+            }
+        }
+
+        function handleTouchMove(e) {
+            e.preventDefault();
+            if (e.touches.length === 1 && isDrawing) {
+                const rect = canvas.getBoundingClientRect();
+                handleMoveFromCoords(e.touches[0].clientX - rect.left, e.touches[0].clientY - rect.top);
+            } else if (e.touches.length === 2) {
+                const t1 = e.touches[0], t2 = e.touches[1];
+                const newDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+                if (lastTouchDistance > 0) {
+                    const scale = newDist / lastTouchDistance;
+                    const cx = (t1.clientX + t2.clientX) / 2, cy = (t1.clientY + t2.clientY) / 2;
+                    const rect = canvas.getBoundingClientRect();
+                    const ccx = cx - rect.left, ccy = cy - rect.top;
+                    const newZoom = zoom * scale;
+                    const factor = newZoom / zoom;
+                    offsetX = ccx - (ccx - offsetX) * factor;
+                    offsetY = ccy - (ccy - offsetY) * factor;
+                    zoom = Math.max(0.3, Math.min(4, newZoom));
+                    lastTouchDistance = newDist;
+                    drawGrid();
+                } else {
+                    lastTouchDistance = newDist;
+                }
+            }
+        }
+
+        function handleTouchEnd(e) {
+            e.preventDefault();
+            lastTouchDistance = 0;
+            if (e.touches.length === 0 && isDrawing) handleEnd();
+        }
+
+        function handleStartFromCoords(x, y) {
+            const cell = getCellFromCoords(x, y);
+            if (cell) {
+                isDrawing = true;
+                selection.start = cell;
+                selection.end = cell;
+                selection.cells = [cell];
+                drawGrid();
+            }
+        }
+
+        function handleMoveFromCoords(x, y) {
+            if (!isDrawing) return;
+            const cell = getCellFromCoords(x, y);
+            if (cell && !selection.cells.some(c => c.row === cell.row && c.col === cell.col)) {
+                const last = selection.cells[selection.cells.length - 1];
+                if (Math.abs(last.row - cell.row) <= 1 && Math.abs(last.col - cell.col) <= 1) {
+                    selection.end = cell;
+                    selection.cells.push(cell);
+                    drawGrid();
+                }
+            }
+        }
+
+        function handleStart(e) {
+            const rect = canvas.getBoundingClientRect();
+            handleStartFromCoords(e.clientX - rect.left, e.clientY - rect.top);
+        }
+
+        function handleMove(e) {
+            if (!isDrawing) return;
+            const rect = canvas.getBoundingClientRect();
+            handleMoveFromCoords(e.clientX - rect.left, e.clientY - rect.top);
+        }
+
+        function handleEnd() {
+            if (!isDrawing || !selection.start) return;
+            isDrawing = false;
+            if (selection.cells.length > 1) checkSelectedWord();
+            selection.start = null; selection.end = null; selection.cells = [];
+            drawGrid();
+        }
+
+        function getCellFromCoords(x, y) {
+            const ax = (x - offsetX) / zoom;
+            const ay = (y - offsetY) / zoom;
+            if (ax < 0 || ay < 0) return null;
+            const col = Math.floor(ax / CELL_SIZE);
+            const row = Math.floor(ay / CELL_SIZE);
+            if (row >= 0 && row < puzzle.grid.length && col >= 0 && col < puzzle.grid[0].length) {
+                return { row, col };
+            }
+            return null;
+        }
+
+        function generateNewPuzzle() {
+            const allWords = [...GERMAN_WORDS];
+            const selectedWords = [];
+            const maxLen = Math.max(DEFAULT_ROWS, DEFAULT_COLS);
+            const filtered = allWords.filter(w => w.length <= maxLen);
+            for (let i = 0; i < DEFAULT_WORD_COUNT && filtered.length > 0; i++) {
+                const idx = Math.floor(Math.random() * filtered.length);
+                selectedWords.push(filtered[idx]);
+                filtered.splice(idx, 1);
+            }
+            puzzle = generatePuzzle(selectedWords, DEFAULT_ROWS, DEFAULT_COLS);
+            puzzle.foundWords = new Set();
+            puzzle.id = 'puzzle_' + Date.now();
+            saveProgress();
+            updateWordList();
+            puzzleInfoEl.textContent = 'Rätsel: ' + puzzle.words.length + ' Wörter | ' + DEFAULT_ROWS + 'x' + DEFAULT_COLS + ' Felder';
+            zoom = 1; offsetX = 0; offsetY = 0;
+            resizeCanvas();
+        }
+
+        function generatePuzzle(words, rows, cols) {
+            const grid = Array(rows).fill().map(() => Array(cols).fill(' '));
+            const wordPositions = {};
+            const placedWords = [];
+            const directions = [
+                {dr:0,dc:1}, {dr:0,dc:-1}, {dr:1,dc:0}, {dr:-1,dc:0},
+                {dr:1,dc:1}, {dr:1,dc:-1}, {dr:-1,dc:1}, {dr:-1,dc:-1}
+            ];
+            const sorted = [...words].sort((a,b) => b.length - a.length);
+            for (const word of sorted) {
+                let placed = false;
+                let attempts = 0;
+                while (!placed && attempts < 200) {
+                    attempts++;
+                    const dir = directions[Math.floor(Math.random() * directions.length)];
+                    let startRow, startCol;
+                    if (dir.dr === 0 && dir.dc === 1) {
+                        startRow = Math.floor(Math.random() * rows);
+                        startCol = Math.floor(Math.random() * (cols - word.length));
+                    } else if (dir.dr === 0 && dir.dc === -1) {
+                        startRow = Math.floor(Math.random() * rows);
+                        startCol = Math.floor(Math.random() * (cols - word.length)) + word.length - 1;
+                    } else if (dir.dr === 1 && dir.dc === 0) {
+                        startRow = Math.floor(Math.random() * (rows - word.length));
+                        startCol = Math.floor(Math.random() * cols);
+                    } else if (dir.dr === -1 && dir.dc === 0) {
+                        startRow = Math.floor(Math.random() * (rows - word.length)) + word.length - 1;
+                        startCol = Math.floor(Math.random() * cols);
+                    } else {
+                        const dr = Math.abs(dir.dr);
+                        const dc = Math.abs(dir.dc);
+                        startRow = Math.floor(Math.random() * (rows - word.length * dr));
+                        startCol = Math.floor(Math.random() * (cols - word.length * dc));
+                        if (dir.dr < 0) startRow += word.length - 1;
+                        if (dir.dc < 0) startCol += word.length - 1;
+                    }
+                    let valid = true;
+                    const positions = [];
+                    for (let i = 0; i < word.length; i++) {
+                        const r = startRow + i * dir.dr;
+                        const c = startCol + i * dir.dc;
+                        if (r < 0 || r >= rows || c < 0 || c >= cols) { valid = false; break; }
+                        const gridChar = grid[r][c];
+                        const wordChar = word[i].toUpperCase();
+                        if (gridChar !== ' ' && gridChar !== wordChar) { valid = false; break; }
+                        positions.push({row: r, col: c});
+                    }
+                    if (valid) {
+                        for (let i = 0; i < word.length; i++) {
+                            const r = startRow + i * dir.dr;
+                            const c = startCol + i * dir.dc;
+                            grid[r][c] = word[i].toUpperCase();
+                        }
+                        placedWords.push(word);
+                        wordPositions[word] = positions;
+                        placed = true;
+                    }
+                }
+            }
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    if (grid[r][c] === ' ') grid[r][c] = getRandomLetter();
+                }
+            }
+            return { words: placedWords, grid: grid, wordPositions: wordPositions };
+        }
+
+        function getRandomLetter() {
+            return 'ABCDEFGHIJKLMNOPQRSTUVWXYZAEOUE'[Math.floor(Math.random() * 29)];
+        }
+
+        function drawGrid() {
+            if (!puzzle.grid || puzzle.grid.length === 0) return;
+            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+            ctx.save();
+            ctx.translate(offsetX, offsetY);
+            ctx.scale(zoom, zoom);
+
+            const rows = puzzle.grid.length;
+            const cols = puzzle.grid[0].length;
+
+            ctx.strokeStyle = GRID_COLOR;
+            ctx.lineWidth = 1;
+            for (let r = 0; r <= rows; r++) {
+                const y = r * CELL_SIZE;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(cols * CELL_SIZE, y);
+                ctx.stroke();
+            }
+            for (let c = 0; c <= cols; c++) {
+                const x = c * CELL_SIZE;
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, rows * CELL_SIZE);
+                ctx.stroke();
+            }
+
+            ctx.fillStyle = TEXT_COLOR;
+            ctx.font = (CELL_SIZE * 0.6) + 'px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    ctx.fillText(puzzle.grid[r][c], c * CELL_SIZE + CELL_SIZE/2, r * CELL_SIZE + CELL_SIZE/2);
+                }
+            }
+
+            for (const word of puzzle.foundWords) {
+                const pos = puzzle.wordPositions[word];
+                if (pos && pos.length > 0) drawEllipseAroundWord(pos);
+            }
+
+            if (selection.cells && selection.cells.length > 0) drawSelection();
+
+            ctx.restore();
+        }
+
+        function drawEllipseAroundWord(positions) {
+            let minR = positions[0].row, maxR = positions[0].row;
+            let minC = positions[0].col, maxC = positions[0].col;
+            for (const p of positions) {
+                minR = Math.min(minR, p.row); maxR = Math.max(maxR, p.row);
+                minC = Math.min(minC, p.col); maxC = Math.max(maxC, p.col);
+            }
+            const cx = (minC + maxC) / 2 * CELL_SIZE + CELL_SIZE/2;
+            const cy = (minR + maxR) / 2 * CELL_SIZE + CELL_SIZE/2;
+            const w = (maxC - minC + 1) * CELL_SIZE;
+            const h = (maxR - minR + 1) * CELL_SIZE;
+            ctx.save();
+            ctx.strokeStyle = FOUND_ELLIPSE_COLOR;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.ellipse(cx, cy, w/2 + 2, h/2 + 2, 0, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawSelection() {
+            ctx.save();
+            ctx.fillStyle = SELECTION_COLOR;
+            for (const cell of selection.cells) {
+                ctx.fillRect(cell.col * CELL_SIZE, cell.row * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+            }
+            ctx.restore();
+        }
+
+        function checkSelectedWord() {
+            if (!selection.cells || selection.cells.length < 2) return;
+            let selectedWord = '';
+            for (const cell of selection.cells) {
+                selectedWord += puzzle.grid[cell.row][cell.col];
+            }
+            const selectedLower = selectedWord.toLowerCase();
+            const reversed = selectedWord.split('').reverse().join('').toLowerCase();
+            for (const word of puzzle.words) {
+                const wordLower = word.toLowerCase();
+                if (selectedLower === wordLower || reversed === wordLower) {
+                    puzzle.foundWords.add(word);
+                    saveProgress();
+                    updateWordList();
+                    drawGrid();
+                    if (navigator.vibrate) navigator.vibrate(30);
+                    return;
+                }
+            }
+            if (navigator.vibrate) navigator.vibrate(50);
+        }
+
+        function highlightWordInGrid(word) {
+            if (puzzle.wordPositions[word]) {
+                const pos = puzzle.wordPositions[word];
+                const first = pos[0], last = pos[pos.length - 1];
+                const centerC = (first.col + last.col) / 2;
+                const centerR = (first.row + last.row) / 2;
+                offsetX = -centerC * CELL_SIZE * zoom + canvasWidth / 2;
+                offsetY = -centerR * CELL_SIZE * zoom + canvasHeight / 2;
+                drawGrid();
+            }
+        }
+
+        function updateWordList() {
+            wordListEl.innerHTML = '';
+            for (const word of puzzle.words) {
+                const el = document.createElement('div');
+                el.className = 'word-item';
+                el.textContent = word;
+                if (puzzle.foundWords.has(word)) el.classList.add('found');
+                wordListEl.appendChild(el);
+            }
+        }
+
+        function setZoom(newZoom) {
+            const oldZoom = zoom;
+            zoom = Math.max(0.3, Math.min(4, newZoom));
+            offsetX = canvasWidth/2 - (canvasWidth/2 - offsetX) * (zoom/oldZoom);
+            offsetY = canvasHeight/2 - (canvasHeight/2 - offsetY) * (zoom/oldZoom);
+            drawGrid();
+        }
+
+        function saveProgress() {
+            if (!puzzle.id) return;
+            localStorage.setItem('puzzle_progress_' + puzzle.id, JSON.stringify({
+                puzzleId: puzzle.id,
+                foundWords: Array.from(puzzle.foundWords),
+                words: puzzle.words,
+                grid: puzzle.grid,
+                wordPositions: puzzle.wordPositions
+            }));
+        }
+
+        function loadProgress(puzzleId) {
+            const saved = localStorage.getItem('puzzle_progress_' + puzzleId);
+            if (saved) {
+                try {
+                    const prog = JSON.parse(saved);
+                    puzzle.foundWords = new Set(prog.foundWords);
+                    return true;
+                } catch(e) {}
+            }
+            return false;
+        }
+
+        function saveCurrentPuzzle() {
+            const name = document.getElementById('puzzle-name').value.trim();
+            if (!name) { alert('Bitte Namen eingeben'); return; }
+            localStorage.setItem('saved_puzzle_' + puzzle.id, JSON.stringify({
+                id: puzzle.id, name: name,
+                words: puzzle.words, grid: puzzle.grid,
+                wordPositions: puzzle.wordPositions,
+                rows: DEFAULT_ROWS, cols: DEFAULT_COLS,
+                createdAt: new Date().toISOString()
+            }));
+            closeModal();
+            alert('Rätsel "' + name + '" gespeichert!');
+        }
+
+        function loadSavedPuzzles() {
+            const puzzles = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith('saved_puzzle_')) {
+                    try { puzzles.push(JSON.parse(localStorage.getItem(key))); } catch(e) {}
+                }
+            }
+            return puzzles;
+        }
+
+        function loadPuzzle(data) {
+            puzzle = {
+                words: data.words, grid: data.grid,
+                wordPositions: data.wordPositions,
+                foundWords: new Set(), id: data.id
+            };
+            loadProgress(puzzle.id);
+            updateWordList();
+            puzzleInfoEl.textContent = 'Rätsel: ' + puzzle.words.length + ' Wörter | ' + data.rows + 'x' + data.cols + ' Felder';
+            zoom = 1; offsetX = 0; offsetY = 0;
+            resizeCanvas();
+            closeModal();
+        }
+
+        function showSaveModal() {
+            modalTitle.textContent = 'Rätsel speichern';
+            modalContent.innerHTML = '<input type="text" id="puzzle-name" placeholder="Name"><button id="modal-save">Speichern</button><button id="modal-cancel">Abbrechen</button>';
+            document.getElementById('modal-save').onclick = saveCurrentPuzzle;
+            document.getElementById('modal-cancel').onclick = closeModal;
+            modalOverlay.style.display = 'flex';
+        }
+
+        function showLoadModal() {
+            modalTitle.textContent = 'Rätsel laden';
+            const puzzles = loadSavedPuzzles();
+            let html = '<div id="saved-puzzles-list">';
+            if (puzzles.length === 0) {
+                html += '<div style="padding:10px;color:#7f8c8d;">Keine gespeicherten Rätsel</div>';
+            } else {
+                puzzles.forEach(function(p) {
+                    html += '<div class="saved-puzzle-item" data-id="' + p.id + '"><strong>' + p.name + '</strong> (' + p.words.length + ' Wörter)<br><small>' + new Date(p.createdAt).toLocaleDateString() + '</small></div>';
+                });
+            }
+            html += '</div><button id="modal-cancel">Schließen</button>';
+            modalContent.innerHTML = html;
+            document.getElementById('modal-cancel').onclick = closeModal;
+            modalContent.querySelectorAll('.saved-puzzle-item').forEach(function(el) {
+                el.onclick = function() {
+                    const id = this.getAttribute('data-id');
+                    const p = puzzles.find(function(p) { return p.id === id; });
+                    if (p) loadPuzzle(p);
+                };
+            });
+            modalOverlay.style.display = 'flex';
+        }
+
+        function closeModal() { modalOverlay.style.display = 'none'; }
+        function clearProgress() {
+            if (confirm('Fortschritt wirklich zurücksetzen?')) {
+                puzzle.foundWords = new Set();
+                saveProgress();
+                updateWordList();
+                drawGrid();
+            }
+        }
+
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
