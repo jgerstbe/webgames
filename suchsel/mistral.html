@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
     <title>Wortsuchrätsel - Mistral</title>
+    <link rel="manifest" href="../manifest.webmanifest">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -684,6 +685,13 @@
         }
 
         window.addEventListener('load', init);
+    </script>
+    <script>
+        (function () {
+            if (!('serviceWorker' in navigator)) return;
+            var root = location.pathname.indexOf('/webgames/') !== -1 ? '/webgames/' : '/';
+            navigator.serviceWorker.register(root + 'service-worker.js', { scope: root });
+        })();
     </script>
 </body>
 </html>

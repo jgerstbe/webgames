@@ -11,6 +11,7 @@
 
 								
 							</style>
+                        <link rel="manifest" href="../manifest.webmanifest">
                         </head>
                         <body>
                             <!DOCTYPE html>
@@ -676,6 +677,13 @@ function init(){
   requestAnimationFrame(loop);
 }
 init();
+</script>
+<script>
+  (function () {
+    if (!('serviceWorker' in navigator)) return;
+    var root = location.pathname.indexOf('/webgames/') !== -1 ? '/webgames/' : '/';
+    navigator.serviceWorker.register(root + 'service-worker.js', { scope: root });
+  })();
 </script>
 </body>
 </html>

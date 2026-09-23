@@ -7,6 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#4f46e5">
+<link rel="manifest" href="../manifest.webmanifest">
 <style>
   :root { color-scheme: light; }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -613,7 +614,10 @@ function fmtDate(ts) {
     var puzzle = SuchselGen.generate({width:width, height:height, words:words.slice(0, target), directions:{horizontal:$('dir-h').checked, vertical:$('dir-v').checked, diagonal:$('dir-d').checked, reversed:$('dir-r').checked}, seed:Math.floor(Math.random() * 2147483647)});
     if (puzzle.error) { error.textContent = puzzle.error; error.style.display = 'block'; return; }
     savePrefs(); var record = {id:uuid(), name:puzzle.words[0] + (puzzle.words.length > 1 ? ' + ' + (puzzle.words.length - 1) + ' weitere' : ''), createdAt:Date.now(), puzzle:puzzle};
-    await storePut('puzzles', record); $('new-form').classList.remove('open'); $('puzzle-list').style.display = ''; await renderList(); startPlay(record.id);
+    await storePut('puzzles', record);
+    $('new-form').classList.remove('open'); $('puzzle-list').style.display = '';
+    await startPlay(record.id);
+    renderList();
   }
 
   function foundSet() { return current.foundSet; }
@@ -718,6 +722,13 @@ function fmtDate(ts) {
   window.addEventListener('pagehide', pauseWhenHidden);
   window.addEventListener('resize', function () { if (current) layoutBoard(); });
   loadPrefs(); updateWordCount(); openDB().finally(function () { renderList(); });
+</script>
+<script>
+  (function () {
+    if (!('serviceWorker' in navigator)) return;
+    var root = location.pathname.indexOf('/webgames/') !== -1 ? '/webgames/' : '/';
+    navigator.serviceWorker.register(root + 'service-worker.js', { scope: root });
+  })();
 </script>
 </body>
 </html>

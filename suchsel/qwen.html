@@ -7,6 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#EFEEE6">
+<link rel="manifest" href="../manifest.webmanifest">
 <meta name="description" content="Wortsuchrätsel erstellen und spielen – für Desktop und iPhone.">
 <title>Suchsel‑Werkstatt · Wortsuchrätsel</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2314191C'/%3E%3Ctext x='16' y='23' font-family='monospace' font-size='19' font-weight='700' fill='%23F5A200' text-anchor='middle'%3EW%3C/text%3E%3Cellipse cx='16' cy='16' rx='12' ry='7' fill='none' stroke='%23F0436E' stroke-width='2'/%3E%3C/svg%3E">
@@ -1890,6 +1891,13 @@ function boot(){
 }
 boot();
 })();
+</script>
+<script>
+  (function () {
+    if (!('serviceWorker' in navigator)) return;
+    var root = location.pathname.indexOf('/webgames/') !== -1 ? '/webgames/' : '/';
+    navigator.serviceWorker.register(root + 'service-worker.js', { scope: root });
+  })();
 </script>
 </body>
 </html>

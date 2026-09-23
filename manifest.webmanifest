@@ -1,0 +1,11 @@
+{
+  "name": "Web Games",
+  "short_name": "Web Games",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f5f5",
+  "theme_color": "#4f46e5",
+  "description": "Offline spielbare Webspiele",
+  "icons": []
+}

@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Web Games</title>
+  <link rel="manifest" href="manifest.webmanifest">
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -85,5 +86,12 @@
       <p>Word search puzzle workshop</p>
     </a>
   </div>
+  <script>
+    (function () {
+      if (!('serviceWorker' in navigator)) return;
+      var root = location.pathname.indexOf('/webgames/') !== -1 ? '/webgames/' : '/';
+      navigator.serviceWorker.register(root + 'service-worker.js', { scope: root });
+    })();
+  </script>
 </body>
 </html>
