@@ -1,4 +1,4 @@
-const CACHE_NAME = 'webgames-v1';
+const CACHE_NAME = 'webgames-v2';
 const APP_SHELL = [
   './',
   './index.html',
