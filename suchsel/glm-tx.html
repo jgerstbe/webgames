@@ -96,7 +96,6 @@
 
   /* ---- Spiel ---- */
   #board-wrap { flex: 1; min-height: 0; position: relative; overflow: hidden; background: #fff; }
-  #board-wrap.paused { display: none; }
   #board { position: absolute; touch-action: none; }
   #fx { position: absolute; inset: 0; pointer-events: none; }
   #play-progress { font-size: 13px; font-weight: 700; background: rgba(255,255,255,.18); padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
@@ -121,6 +120,12 @@
   #board-overlay.show { display: flex; }
   #board-overlay .big { font-size: 26px; font-weight: 800; color: #0f172a; }
   #board-overlay .row { display: flex; gap: 10px; }
+  #pause-overlay {
+    position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+    background: rgba(15,23,42,.72); color: #fff; flex-direction: column; gap: 14px; z-index: 6;
+  }
+  #pause-overlay.show { display: flex; }
+  #pause-overlay .big { font-size: 26px; font-weight: 800; }
 
   /* ---- Sheet & Toast ---- */
   #sheet-backdrop {
@@ -207,6 +212,10 @@
             <button class="btn ghost" id="btn-overlay-list">Rätsel-Liste</button>
             <button class="btn" id="btn-overlay-again">Neu spielen</button>
           </div>
+        </div>
+        <div id="pause-overlay">
+          <div class="big">Pausiert</div>
+          <button class="btn" id="btn-resume">▶ Fortsetzen</button>
         </div>
       </div>
       <div id="wordlist"><div id="chips"></div></div>
@@ -539,18 +548,20 @@ function fmtDate(ts) {
 
   var current = null, boardCanvas = $('board'), boardCtx = boardCanvas.getContext('2d');
   var cell = 20, pad = 12, zoom = 1, tx = 0, ty = 0, fxCanvas = $('fx');
+  var selectionStart = null, selectionPath = [], pointers = new Map(), panStart = null, pinchStart = null;
   var timerHandle = null, timerStarted = 0, elapsedMs = 0;
   function formatTime(ms) { var seconds = Math.floor(ms / 1000), minutes = Math.floor(seconds / 60); seconds %= 60; return (minutes < 10 ? '0' : '') + minutes + ':' + (seconds < 10 ? '0' : '') + seconds; }
-  function timerDisplay() { if (!current) return; var ms = elapsedMs + (timerHandle ? Date.now() - timerStarted : 0); $('play-timer').textContent = formatTime(ms); }
+  function timerDisplay() { if (!current) return; var ms = elapsedMs + (timerHandle ? Date.now() - timerStarted : 0); $('play-timer').textContent = formatTime(ms); $('btn-pause').textContent = timerHandle ? '⏸' : '▶'; }
+  function setPausedOverlay(show) { $('pause-overlay').classList.toggle('show', !!show); }
   function timerStart() {
     if (!current || current.prog.done || timerHandle) return;
-    timerStarted = Date.now(); timerHandle = setInterval(timerDisplay, 250); timerDisplay();
+    setPausedOverlay(false); timerStarted = Date.now(); timerHandle = setInterval(timerDisplay, 250); timerDisplay();
   }
-  function timerPause() {
+  function timerPause(showOverlay) {
     if (!timerHandle) return;
-    elapsedMs += Date.now() - timerStarted; clearInterval(timerHandle); timerHandle = null; timerDisplay();
+    elapsedMs += Date.now() - timerStarted; clearInterval(timerHandle); timerHandle = null; timerDisplay(); setPausedOverlay(showOverlay !== false);
   }
-  function timerLoad(prog) { clearInterval(timerHandle); timerHandle = null; elapsedMs = prog.elapsedMs || 0; timerStart(); }
+  function timerLoad(prog) { clearInterval(timerHandle); timerHandle = null; elapsedMs = prog.elapsedMs || 0; setPausedOverlay(false); if (!prog.done) timerStart(); else timerDisplay(); }
   function timerSave() { if (timerHandle) { elapsedMs += Date.now() - timerStarted; timerStarted = Date.now(); } if (current) current.prog.elapsedMs = elapsedMs; timerDisplay(); }
 
   function showScreen(id) { document.querySelectorAll('.screen').forEach(function (s) { s.classList.remove('active'); }); $(id).classList.add('active'); }
@@ -592,15 +603,72 @@ function fmtDate(ts) {
   function updateHeader() { $('play-progress').textContent = foundSet().size + ' / ' + current.rec.puzzle.words.length; }
   function updateChips() { document.querySelectorAll('#chips .chip').forEach(function (chip) { chip.classList.toggle('found', foundSet().has(chip.dataset.word)); }); }
   function layoutBoard() { if (!current) return; var wrap = $('board-wrap'), p = current.rec.puzzle; cell = Math.max(3, Math.floor(Math.min((wrap.clientWidth - 8) / p.width, (wrap.clientHeight - 8) / p.height) * zoom)); pad = Math.round(cell * .5) + 2; boardCanvas.style.width = (pad * 2 + cell * p.width) + 'px'; boardCanvas.style.height = (pad * 2 + cell * p.height) + 'px'; boardCanvas.width = boardCanvas.clientWidth * devicePixelRatio; boardCanvas.height = boardCanvas.clientHeight * devicePixelRatio; tx = Math.max(0, (wrap.clientWidth - boardCanvas.clientWidth) / 2); ty = Math.max(0, (wrap.clientHeight - boardCanvas.clientHeight) / 2); boardCanvas.style.left = tx + 'px'; boardCanvas.style.top = ty + 'px'; drawBoard(); }
-  function drawBoard() { if (!current) return; var p = current.rec.puzzle, w = boardCanvas.clientWidth, h = boardCanvas.clientHeight; boardCtx.setTransform(boardCanvas.width / w, 0, 0, boardCanvas.height / h, 0, 0); boardCtx.fillStyle = '#fff'; boardCtx.fillRect(0, 0, w, h); boardCtx.fillStyle = '#1f2937'; boardCtx.font = '600 ' + Math.max(7, Math.round(cell * .58)) + 'px sans-serif'; boardCtx.textAlign = 'center'; boardCtx.textBaseline = 'middle'; p.grid.forEach(function (row, r) { for (var c = 0; c < p.width; c++) boardCtx.fillText(row.charAt(c), pad + c * cell + cell / 2, pad + r * cell + cell / 2); }); }
+  function drawBoard() {
+    if (!current) return;
+    var p = current.rec.puzzle, w = boardCanvas.clientWidth, h = boardCanvas.clientHeight;
+    boardCtx.setTransform(boardCanvas.width / w, 0, 0, boardCanvas.height / h, 0, 0);
+    boardCtx.fillStyle = '#fff'; boardCtx.fillRect(0, 0, w, h);
+    if (cell >= 14) {
+      boardCtx.strokeStyle = '#e5e7eb'; boardCtx.lineWidth = 1; boardCtx.beginPath();
+      for (var gc = 0; gc <= p.width; gc++) { boardCtx.moveTo(pad + gc * cell + .5, pad); boardCtx.lineTo(pad + gc * cell + .5, pad + p.height * cell); }
+      for (var gr = 0; gr <= p.height; gr++) { boardCtx.moveTo(pad, pad + gr * cell + .5); boardCtx.lineTo(pad + p.width * cell, pad + gr * cell + .5); }
+      boardCtx.stroke();
+    }
+    current.prog.found.forEach(function (mark) {
+      var first = mark.cells[0], last = mark.cells[mark.cells.length - 1];
+      boardCtx.strokeStyle = mark.revealed ? '#94a3b8' : mark.color; boardCtx.lineWidth = Math.max(3, cell * .14); boardCtx.lineCap = 'round';
+      boardCtx.beginPath(); boardCtx.moveTo(pad + first.c * cell + cell / 2, pad + first.r * cell + cell / 2); boardCtx.lineTo(pad + last.c * cell + cell / 2, pad + last.r * cell + cell / 2); boardCtx.stroke();
+    });
+    if (selectionPath.length > 1) {
+      boardCtx.strokeStyle = 'rgba(59,130,246,.32)'; boardCtx.lineWidth = cell * .9; boardCtx.beginPath();
+      selectionPath.forEach(function (point, index) { var x = pad + point.c * cell + cell / 2, y = pad + point.r * cell + cell / 2; if (index) boardCtx.lineTo(x, y); else boardCtx.moveTo(x, y); });
+      boardCtx.stroke();
+    }
+    boardCtx.fillStyle = '#1f2937'; boardCtx.font = '600 ' + Math.max(7, Math.round(cell * .58)) + 'px sans-serif'; boardCtx.textAlign = 'center'; boardCtx.textBaseline = 'middle';
+    p.grid.forEach(function (row, r) { for (var c = 0; c < p.width; c++) boardCtx.fillText(row.charAt(c), pad + c * cell + cell / 2, pad + r * cell + cell / 2); });
+  }
   function persist() { timerSave(); current.prog.updated = Date.now(); return storePut('progress', current.prog); }
-  function checkWord(word) { var p = current.rec.puzzle, placement = p.placements.find(function (x) { return x.word === word || x.word === word.split('').reverse().join(''); }); if (!placement || foundSet().has(placement.word)) return; current.prog.found.push({word:placement.word, cells:Array.from({length:placement.word.length}, function (_, i) { return {r:placement.r + placement.dr * i, c:placement.c + placement.dc * i}; }), color:COLORS[current.prog.found.length % COLORS.length], rot:0}); foundSet().add(placement.word); updateChips(); updateHeader(); persist(); if (foundSet().size === p.words.length) { current.prog.done = true; timerPause(); persist(); $('overlay-title').textContent = '🎉 Gelöst!'; $('board-overlay').classList.add('show'); } }
+  function checkWord(word) { var p = current.rec.puzzle, placement = p.placements.find(function (x) { return x.word === word || x.word === word.split('').reverse().join(''); }); if (!placement || foundSet().has(placement.word)) return; current.prog.found.push({word:placement.word, cells:Array.from({length:placement.word.length}, function (_, i) { return {r:placement.r + placement.dr * i, c:placement.c + placement.dc * i}; }), color:COLORS[current.prog.found.length % COLORS.length], rot:0}); foundSet().add(placement.word); updateChips(); updateHeader(); persist(); if (foundSet().size === p.words.length) { current.prog.done = true; timerPause(false); persist(); $('overlay-title').textContent = '🎉 Gelöst!'; $('board-overlay').classList.add('show'); } }
   $('btn-pause').addEventListener('click', function () { if (timerHandle) timerPause(); else timerStart(); persist(); });
   $('btn-menu').addEventListener('click', function () { openSheet(current.rec.name, [{label:'Fortschritt zurücksetzen', danger:true, onClick:function(){current.prog={puzzleId:current.rec.id,found:[],hints:[],done:false,elapsedMs:0}; current.foundSet.clear(); timerLoad(current.prog); updateChips(); updateHeader(); persist();}}, {label:'Rätsel löschen', danger:true, onClick:function(){var id=current.rec.id; timerPause(); current=null; storeDelete('puzzles',id); storeDelete('progress',id); showScreen('screen-puzzles'); renderList();}}, {label:'Abbrechen', plain:true, onClick:function(){}}]); });
   $('btn-back').addEventListener('click', function () { if (current) { timerPause(); persist(); current = null; } showScreen('screen-puzzles'); renderList(); });
   $('btn-overlay-list').addEventListener('click', function () { timerPause(); persist(); current = null; showScreen('screen-puzzles'); renderList(); });
   $('btn-overlay-again').addEventListener('click', function () { $('board-overlay').classList.remove('show'); current.prog={puzzleId:current.rec.id,found:[],hints:[],done:false,elapsedMs:0}; current.foundSet.clear(); timerLoad(current.prog); updateChips(); updateHeader(); persist(); });
-  boardCanvas.addEventListener('click', function (e) { if (!current || current.prog.done) return; var rect = boardCanvas.getBoundingClientRect(), c = Math.max(0, Math.min(current.rec.puzzle.width - 1, Math.floor((e.clientX - rect.left - pad) / cell))), r = Math.max(0, Math.min(current.rec.puzzle.height - 1, Math.floor((e.clientY - rect.top - pad) / cell))); var letter = current.rec.puzzle.grid[r].charAt(c); var word = current.rec.puzzle.words.find(function (w) { return w.charAt(0) === letter && !foundSet().has(w); }); if (word) checkWord(word); });
+  function eventPoint(event) { var rect = boardCanvas.getBoundingClientRect(); return {x:event.clientX - rect.left, y:event.clientY - rect.top}; }
+  function cellAt(point) { var p = current.rec.puzzle; return {r:Math.max(0, Math.min(p.height - 1, Math.floor((point.y - pad) / cell))), c:Math.max(0, Math.min(p.width - 1, Math.floor((point.x - pad) / cell)))}; }
+  function lineBetween(start, end) {
+    var dr = end.r - start.r, dc = end.c - start.c, ar = Math.abs(dr), ac = Math.abs(dc);
+    if (dr !== 0 && dc !== 0 && ar !== ac) return null;
+    var length = Math.max(ar, ac) + 1, sr = Math.sign(dr), sc = Math.sign(dc), result = [];
+    for (var i = 0; i < length; i++) result.push({r:start.r + sr * i, c:start.c + sc * i});
+    return result;
+  }
+  function finishSelection() {
+    if (selectionPath.length > 1) {
+      var word = selectionPath.map(function (point) { return current.rec.puzzle.grid[point.r].charAt(point.c); }).join('');
+      checkWord(word);
+    }
+    selectionStart = null; selectionPath = []; drawBoard();
+  }
+  boardCanvas.addEventListener('pointerdown', function (event) {
+    if (!current || current.prog.done || !timerHandle) return;
+    event.preventDefault(); boardCanvas.setPointerCapture(event.pointerId); pointers.set(event.pointerId, eventPoint(event));
+    if (pointers.size === 1) { selectionStart = cellAt(eventPoint(event)); selectionPath = [selectionStart]; }
+    else { selectionStart = null; selectionPath = []; panStart = {x:event.clientX, y:event.clientY, tx:tx, ty:ty}; var points = Array.from(pointers.values()); pinchStart = {distance:Math.max(1, Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y)), zoom:zoom}; }
+    drawBoard();
+  });
+  boardCanvas.addEventListener('pointermove', function (event) {
+    if (!pointers.has(event.pointerId) || !current || !timerHandle) return;
+    event.preventDefault(); pointers.set(event.pointerId, eventPoint(event));
+    if (pointers.size === 2 && pinchStart) { var points = Array.from(pointers.values()), distance = Math.max(1, Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y)); zoom = Math.max(1, Math.min(6, pinchStart.zoom * distance / pinchStart.distance)); layoutBoard(); }
+    else if (pointers.size === 1 && selectionStart) selectionPath = lineBetween(selectionStart, cellAt(eventPoint(event))) || selectionPath;
+    else if (pointers.size === 1 && panStart) { tx = panStart.tx + event.clientX - panStart.x; ty = panStart.ty + event.clientY - panStart.y; boardCanvas.style.left = tx + 'px'; boardCanvas.style.top = ty + 'px'; }
+    drawBoard();
+  });
+  function pointerEnd(event) { if (!pointers.has(event.pointerId)) return; pointers.delete(event.pointerId); if (pointers.size < 2) pinchStart = null; if (pointers.size === 0) { finishSelection(); panStart = null; } }
+  boardCanvas.addEventListener('pointerup', pointerEnd); boardCanvas.addEventListener('pointercancel', pointerEnd);
+  boardCanvas.addEventListener('wheel', function (event) { if (!current || !timerHandle) return; event.preventDefault(); zoom = Math.max(1, Math.min(6, zoom * (1 - event.deltaY * .0012))); layoutBoard(); }, {passive:false});
+  $('btn-resume').addEventListener('click', function () { timerStart(); persist(); });
   window.addEventListener('resize', function () { if (current) layoutBoard(); });
   loadPrefs(); updateWordCount(); openDB().finally(function () { renderList(); });
 </script>
