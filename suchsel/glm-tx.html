@@ -836,7 +836,6 @@ function fmtDate(ts) {
         body: JSON.stringify({
           model: model,
           temperature: 0.7,
-          max_tokens: 500,
           messages: [{
             role: 'system',
             content: 'Antworte nur als gültiges JSON. Das JSON-Format ist {"words":[...]} und nichts anderes.'
@@ -856,6 +855,9 @@ function fmtDate(ts) {
       }
 
       var data = await response.json();
+      if (data && data.choices && data.choices[0] && data.choices[0].native_finish_reason === 'length') {
+        throw new Error('Die KI-Antwort wurde abgeschnitten. Bitte erneut versuchen oder ein anderes Modell wählen.');
+      }
       var content = data && data.choices && data.choices[0] && data.choices[0].message ? data.choices[0].message.content : '';
       var parsed = extractJsonFromText(content);
       var wordList = [];
