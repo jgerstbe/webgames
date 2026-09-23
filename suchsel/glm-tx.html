@@ -49,7 +49,7 @@
 
   main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
-  /* ---- RÃ¤tsel-Liste ---- */
+  /* ---- Rätsel-Liste ---- */
   #puzzle-list { flex: 1; min-height: 0; overflow-y: auto; padding: 12px; -webkit-overflow-scrolling: touch; }
   .card {
     background: #fff; border-radius: 14px; padding: 12px 8px 12px 14px; margin-bottom: 10px;
@@ -64,7 +64,7 @@
   .card-sub { font-size: 12px; color: #64748b; margin-top: 5px; }
   .badge-done { display: inline-block; background: #dcfce7; color: #15803d; font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; margin-left: 6px; }
 
-  /* ---- Neues RÃ¤tsel ---- */
+  /* ---- Neues Rätsel ---- */
   #new-form {
     flex: 1; min-height: 0; overflow-y: auto; padding: 14px; background: #fff;
     -webkit-overflow-scrolling: touch; display: none; flex-direction: column; gap: 12px;
@@ -149,24 +149,24 @@
 <body>
 <div class="app">
 
-  <!-- ======== RÃ¤tsel-Liste ======== -->
+  <!-- ======== Rätsel-Liste ======== -->
   <div id="screen-puzzles" class="screen active">
     <header>
       <h1>Suchsel</h1>
-      <button class="btn hdr" id="btn-new">ï¼ Neues RÃ¤tsel</button>
+      <button class="btn hdr" id="btn-new">＋ Neues Rätsel</button>
     </header>
     <main>
       <div id="puzzle-list"></div>
       <form id="new-form" autocomplete="off">
         <div>
-          <label for="words">WÃ¶rter</label>
-          <textarea id="words" rows="6" spellcheck="false" placeholder="BAUMHAUS, SCHNECKE, FERNGLAS, APFEL, ZUG â¦"></textarea>
-          <div class="hint">Mit Komma, Semikolon oder Zeilenumbruch trennen Â· Umlaute und Ã erlaubt Â· <span class="count-badge" id="word-count">0 WÃ¶rter</span></div>
+          <label for="words">Wörter</label>
+          <textarea id="words" rows="6" spellcheck="false" placeholder="BAUMHAUS, SCHNECKE, FERNGLAS, APFEL, ZUG …"></textarea>
+          <div class="hint">Mit Komma, Semikolon oder Zeilenumbruch trennen · Umlaute und ß erlaubt · <span class="count-badge" id="word-count">0 Wörter</span></div>
         </div>
         <div class="row3">
           <div><label for="in-width">Breite</label><input id="in-width" type="number" inputmode="numeric" min="4" max="80" value="50"></div>
-          <div><label for="in-height">HÃ¶he</label><input id="in-height" type="number" inputmode="numeric" min="4" max="80" value="13"></div>
-          <div><label for="in-target">WÃ¶rter</label><input id="in-target" type="number" inputmode="numeric" min="1" max="60" value="15"></div>
+          <div><label for="in-height">Höhe</label><input id="in-height" type="number" inputmode="numeric" min="4" max="80" value="13"></div>
+          <div><label for="in-target">Wörter</label><input id="in-target" type="number" inputmode="numeric" min="1" max="60" value="15"></div>
         </div>
         <div>
           <label>Verstecken in Richtungen</label>
@@ -174,11 +174,11 @@
             <label><input type="checkbox" id="dir-h" checked> Horizontal</label>
             <label><input type="checkbox" id="dir-v" checked> Vertikal</label>
             <label><input type="checkbox" id="dir-d" checked> Diagonal</label>
-            <label><input type="checkbox" id="dir-r" checked> RÃ¼ckwÃ¤rts</label>
+            <label><input type="checkbox" id="dir-r" checked> Rückwärts</label>
           </div>
         </div>
         <div id="form-error"></div>
-        <button type="submit" class="btn full" id="btn-create">RÃ¤tsel erstellen</button>
+        <button type="submit" class="btn full" id="btn-create">Rätsel erstellen</button>
         <button type="button" class="btn ghost full" id="btn-cancel-form">Abbrechen</button>
       </form>
     </main>
@@ -187,19 +187,19 @@
   <!-- ======== Spiel ======== -->
   <div id="screen-play" class="screen">
     <header>
-      <button class="btn hdr back" id="btn-back">â¹</button>
-      <h1 id="play-title">RÃ¤tsel</h1>
+      <button class="btn hdr back" id="btn-back">‹</button>
+      <h1 id="play-title">Rätsel</h1>
       <span id="play-progress">0 / 0</span>
-      <button class="btn hdr" id="btn-menu">â¯</button>
+      <button class="btn hdr" id="btn-menu">⋯</button>
     </header>
     <main>
       <div id="board-wrap">
         <canvas id="board"></canvas>
         <canvas id="fx"></canvas>
         <div id="board-overlay">
-          <div class="big" id="overlay-title">ð GelÃ¶st!</div>
+          <div class="big" id="overlay-title">🎉 Gelöst!</div>
           <div class="row">
-            <button class="btn ghost" id="btn-overlay-list">RÃ¤tsel-Liste</button>
+            <button class="btn ghost" id="btn-overlay-list">Rätsel-Liste</button>
             <button class="btn" id="btn-overlay-again">Neu spielen</button>
           </div>
         </div>
@@ -220,11 +220,11 @@
 
 <script>
 /*
- * Suchsel-Generator: versteckt WÃ¶rter in einem Buchstabengitter (horizontal,
- * vertikal, diagonal â optional rÃ¼ckwÃ¤rts) per Backtracking und fÃ¼llt die
- * Restfelder mit hÃ¤ufigen bzw. wortÃ¤hnlichen Buchstaben.
+ * Suchsel-Generator: versteckt Wörter in einem Buchstabengitter (horizontal,
+ * vertikal, diagonal – optional rückwärts) per Backtracking und füllt die
+ * Restfelder mit häufigen bzw. wortähnlichen Buchstaben.
  *
- * LÃ¤uft im Browser (window.SuchselGen) und in Node (module.exports).
+ * Läuft im Browser (window.SuchselGen) und in Node (module.exports).
  */
 (function (global) {
   'use strict';
@@ -235,7 +235,7 @@
     diagonal: [[1, 1], [1, -1]]
   };
 
-  /* Deutsche BuchstabenhÃ¤ufigkeit (gewichtete Kette) fÃ¼r die FÃ¼llfelder. */
+  /* Deutsche Buchstabenhäufigkeit (gewichtete Kette) für die Füllfelder. */
   var FREQ =
     'EEEEEEEEEEEEEEEEE' + // E 17
     'NNNNNNNNNN' +        // N 10
@@ -248,7 +248,7 @@
     'UUUU' +              // U 4
     'LLL' + 'CCC' + 'GGG' + 'MMM' + 'OOO' + // je 3
     'WW' + 'FF' + 'KK' +  // je 2
-    'ZPVBÃÃÃ';            // je 1
+    'ZPVBÄÖÜ';            // je 1
 
   function mulberry32(seed) {
     var a = seed >>> 0;
@@ -262,9 +262,9 @@
 
   function normalizeWord(w) {
     return String(w || '')
-      .replace(/[Ãáº]/g, 'SS')
+      .replace(/[ßẞ]/g, 'SS')
       .toUpperCase()
-      .replace(/[^A-ZÃÃÃ]/g, '');
+      .replace(/[^A-ZÄÖÜ]/g, '');
   }
 
   function activeDirs(directions) {
@@ -279,7 +279,7 @@
     return dirs;
   }
 
-  /* LÃ¤ngste mÃ¶gliche Gerade im Gitter fÃ¼r die erlaubten Richtungen. */
+  /* Längste mögliche Gerade im Gitter für die erlaubten Richtungen. */
   function maxWordLen(width, height, dirs) {
     var m = 0;
     dirs.forEach(function (d) {
@@ -301,9 +301,9 @@
   }
 
   /*
-   * Ein Platzierungsversuch: WÃ¶rter (lÃ¤ngste zuerst) per Backtracking setzen.
-   * Pro Wort mehrere zufÃ¤llige Kandidaten; scheitert die Rekursion, wird das
-   * Wort zurÃ¼ckgenommen (unplace). stepBudget verhindert Entartung.
+   * Ein Platzierungsversuch: Wörter (längste zuerst) per Backtracking setzen.
+   * Pro Wort mehrere zufällige Kandidaten; scheitert die Rekursion, wird das
+   * Wort zurückgenommen (unplace). stepBudget verhindert Entartung.
    */
   function attempt(words, width, height, dirs, rng, triesPerWord, stepBudget) {
     var grid = [];
@@ -347,8 +347,8 @@
 
   /*
    * generate({width, height, words, directions, seed})
-   * directions: {horizontal, vertical, diagonal, reversed} â Default: alles an.
-   * RÃ¼ckgabe: {width, height, directions, grid:[Zeilenstrings], words:[{word,r,c,dr,dc}]}
+   * directions: {horizontal, vertical, diagonal, reversed} – Default: alles an.
+   * Rückgabe: {width, height, directions, grid:[Zeilenstrings], words:[{word,r,c,dr,dc}]}
    * oder {error: '...'}.
    */
   function generate(opts) {
@@ -369,7 +369,7 @@
       var n = normalizeWord(w);
       if (n && !seen[n]) { seen[n] = true; words.push(n); }
     });
-    if (!words.length) return { error: 'Keine gÃ¼ltigen WÃ¶rter angegeben.' };
+    if (!words.length) return { error: 'Keine gültigen Wörter angegeben.' };
 
     var dirs = activeDirs(directions);
     if (!dirs.length) return { error: 'Bitte mindestens eine Richtung aktivieren.' };
@@ -377,7 +377,7 @@
     var maxLen = maxWordLen(width, height, dirs);
     var tooLong = words.filter(function (w) { return w.length > maxLen; });
     if (tooLong.length) {
-      return { error: 'Zu lang fÃ¼r ein ' + width + 'Ã' + height + '-Gitter: ' + tooLong.join(', ') };
+      return { error: 'Zu lang für ein ' + width + '×' + height + '-Gitter: ' + tooLong.join(', ') };
     }
 
     var sorted = words.slice().sort(function (a, b) { return b.length - a.length; });
@@ -386,11 +386,11 @@
       result = attempt(sorted, width, height, dirs, rng, 250, 300000);
     }
     if (!result) {
-      return { error: 'Die WÃ¶rter passen nicht ins Gitter. Gitter vergrÃ¶Ãern oder Wortliste verkleinern.' };
+      return { error: 'Die Wörter passen nicht ins Gitter. Gitter vergrößern oder Wortliste verkleinern.' };
     }
 
-    /* Restfelder auffÃ¼llen: 30 % Buchstaben aus dem Wortgut (mehr TÃ¤uschung),
-       sonst sprachtypische HÃ¤ufigkeit. */
+    /* Restfelder auffüllen: 30 % Buchstaben aus dem Wortgut (mehr Täuschung),
+       sonst sprachtypische Häufigkeit. */
     var grid = result.grid;
     var allLetters = words.join('');
     for (var r = 0; r < height; r++) {
@@ -403,7 +403,7 @@
       }
     }
 
-    /* Platzierungen auf die Eingabereihenfolge der WÃ¶rter mappen.
+    /* Platzierungen auf die Eingabereihenfolge der Wörter mappen.
      * Vertrag: words = String-Liste (Eingabereihenfolge),
      *          placements = Objekte {word,r,c,dr,dc}. */
     var byWord = {};
@@ -522,7 +522,7 @@ function closeSheet() {
 }
 $('sheet-backdrop').addEventListener('click', closeSheet);
 
-/* ================= PrÃ¤ferenzen (localStorage) ================= */
+/* ================= Präferenzen (localStorage) ================= */
 var PREF_KEY = 'suchsel-prefs';
 function savePrefs() {
   try {
@@ -531,7 +531,7 @@ function savePrefs() {
       target: $('in-target').value, h: $('dir-h').checked, v: $('dir-v').checked,
       d: $('dir-d').checked, r: $('dir-r').checked
     }));
-  } catch (e) { /* privat z. B. im Privatmodus â ignorieren */ }
+  } catch (e) { /* privat z. B. im Privatmodus – ignorieren */ }
 }
 function loadPrefs() {
   try {
@@ -554,11 +554,11 @@ function parseWords(text) {
 }
 function updateWordCount() {
   var n = parseWords($('words').value).length;
-  $('word-count').textContent = n + (n === 1 ? ' Wort' : ' WÃ¶rter');
+  $('word-count').textContent = n + (n === 1 ? ' Wort' : ' Wörter');
 }
 $('words').addEventListener('input', function () { updateWordCount(); savePrefs(); });
 
-/* ================= RÃ¤tsel-Liste ================= */
+/* ================= Rätsel-Liste ================= */
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(function (s) { s.classList.remove('active'); });
   $(id).classList.add('active');
@@ -574,7 +574,7 @@ async function renderList() {
 
   list.innerHTML = '';
   if (!puzzles.length && !$('new-form').classList.contains('open')) {
-    list.innerHTML = '<div class="empty">Noch keine RÃ¤tsel.<br>Tippe oben rechts auf âï¼ Neues RÃ¤tselâ.</div>';
+    list.innerHTML = '<div class="empty">Noch keine Rätsel.<br>Tippe oben rechts auf „＋ Neues Rätsel“.</div>';
   }
   puzzles.forEach(function (pz) {
     fixLegacyName(pz);
@@ -586,19 +586,19 @@ async function renderList() {
     card.className = 'card';
     card.innerHTML =
       '<div class="card-main">' +
-        '<div class="card-title">' + escapeHtml(pz.name) + (done ? '<span class="badge-done">â gelÃ¶st</span>' : '') + '</div>' +
-        '<div class="card-meta">' + pz.puzzle.height + ' Ã ' + pz.puzzle.width + ' Â· ' + total + ' WÃ¶rter Â· erstellt ' + fmtDate(pz.createdAt) + '</div>' +
+        '<div class="card-title">' + escapeHtml(pz.name) + (done ? '<span class="badge-done">✓ gelöst</span>' : '') + '</div>' +
+        '<div class="card-meta">' + pz.puzzle.height + ' × ' + pz.puzzle.width + ' · ' + total + ' Wörter · erstellt ' + fmtDate(pz.createdAt) + '</div>' +
         '<div class="bar"><i style="width:' + Math.round(found / total * 100) + '%"></i></div>' +
         '<div class="card-sub">' + found + ' von ' + total + ' gefunden</div>' +
       '</div>' +
-      '<button type="button" class="icon-btn del" title="LÃ¶schen">ð</button>';
+      '<button type="button" class="icon-btn del" title="Löschen">🗑</button>';
     card.addEventListener('click', function () { startPlay(pz.id); });
     card.querySelector('.del').addEventListener('click', function (e) {
       e.stopPropagation();
-      openSheet('RÃ¤tsel â' + pz.name + 'â lÃ¶schen?', [
-        { label: 'LÃ¶schen', danger: true, onClick: function () {
+      openSheet('Rätsel „' + pz.name + '“ löschen?', [
+        { label: 'Löschen', danger: true, onClick: function () {
             storeDelete('puzzles', pz.id); storeDelete('progress', pz.id);
-            toast('RÃ¤tsel gelÃ¶scht'); renderList();
+            toast('Rätsel gelöscht'); renderList();
           } },
         { label: 'Abbrechen', plain: true, onClick: function () {} }
       ]);
@@ -611,8 +611,8 @@ function escapeHtml(s) {
     return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
   });
 }
-/* Migriert DatensÃ¤tze aus der Zeit des Wort-Objekt-Bugs:
-   words war ein Array von Platzierungs-Objekten â jetzt Strings + placements. */
+/* Migriert Datensätze aus der Zeit des Wort-Objekt-Bugs:
+   words war ein Array von Platzierungs-Objekten – jetzt Strings + placements. */
 function fixLegacyName(rec) {
   if (!rec || !rec.puzzle) return;
   var ws = rec.puzzle.words;
@@ -651,13 +651,13 @@ async function createPuzzle() {
   var height = parseInt($('in-height').value, 10) || 13;
   var target = parseInt($('in-target').value, 10) || 15;
   if (width < 4 || width > 80 || height < 4 || height > 80) {
-    err.textContent = 'GittergrÃ¶Ãe muss zwischen 4Ã4 und 80Ã80 liegen.'; err.style.display = 'block'; return;
+    err.textContent = 'Gittergröße muss zwischen 4×4 und 80×80 liegen.'; err.style.display = 'block'; return;
   }
   var pool = parseWords($('words').value);
   if (!pool.length) {
     err.textContent = 'Bitte mindestens ein Wort eingeben.'; err.style.display = 'block'; return;
   }
-  /* Bei mehr WÃ¶rtern als gewÃ¼nscht: zufÃ¤llige Auswahl treffen. */
+  /* Bei mehr Wörtern als gewünscht: zufällige Auswahl treffen. */
   var chosen = pool;
   if (pool.length > target) {
     chosen = pool.slice();
@@ -711,7 +711,7 @@ function foundSet() { return current.foundSet; }
 
 async function startPlay(id) {
   var rec = await storeGet('puzzles', id);
-  if (!rec) { toast('RÃ¤tsel nicht gefunden'); return; }
+  if (!rec) { toast('Rätsel nicht gefunden'); return; }
   fixLegacyName(rec);
   var prog = await storeGet('progress', id);
   if (!prog) prog = { puzzleId: id, found: [], hints: [], done: false, updated: Date.now() };
@@ -835,7 +835,7 @@ function drawBoard() {
   });
   boardCtx.restore();
 
-  /* Gefundene WÃ¶rter: Ellipsen wie auf Papier */
+  /* Gefundene Wörter: Ellipsen wie auf Papier */
   foundMarks().forEach(function (m) {
     var cs = m.cells;
     var x0 = pad + cs[0].c * cell + cell / 2, y0 = pad + cs[0].r * cell + cell / 2;
@@ -854,7 +854,7 @@ function drawBoard() {
     boardCtx.restore();
   });
 
-  /* Aktuelle Auswahl: halbtransparente Route Ã¼ber die Zellmittelpunkte */
+  /* Aktuelle Auswahl: halbtransparente Route über die Zellmittelpunkte */
   if (selPath.length > 1) {
     boardCtx.save();
     boardCtx.strokeStyle = 'rgba(59,130,246,.30)';
@@ -883,7 +883,7 @@ function cellAt(p) {
   var r = Math.max(0, Math.min(pz.height - 1, Math.floor(y / cell)));
   return { r: r, c: c };
 }
-/* KÃ¼rzeste gerade Linie (horiz/vert/diag) von Anker zu Punkt â oder null. */
+/* Kürzeste gerade Linie (horiz/vert/diag) von Anker zu Punkt – oder null. */
 function snapLine(a, b) {
   var dr = b.r - a.r, dc = b.c - a.c;
   var adr = Math.abs(dr), adc = Math.abs(dc);
@@ -1010,7 +1010,7 @@ boardCanvas.addEventListener('wheel', function (e) {
   requestLayout();
 }, { passive: false });
 
-/* ---- Wort-PrÃ¼fung & Fortschritt ---- */
+/* ---- Wort-Prüfung & Fortschritt ---- */
 function wordMap() {
   var m = {};
   current.rec.puzzle.words.forEach(function (w) { m[w] = w; });
@@ -1036,13 +1036,13 @@ function checkWord(cells) {
   storePut('progress', current.prog).catch(function () { toast('Achtung: Fortschritt konnte nicht gespeichert werden'); });
 
   updateChips(); updateHeader(); requestDraw();
-  toast('ð ' + hit + ' gefunden!');
+  toast('🎉 ' + hit + ' gefunden!');
   if (foundSet().size === pz.words.length) {
     current.prog.done = true;
     storePut('progress', current.prog).catch(function () {});
     confetti();
     setTimeout(function () {
-      $('overlay-title').textContent = 'ð GelÃ¶st! Alle ' + pz.words.length + ' WÃ¶rter gefunden.';
+      $('overlay-title').textContent = '🎉 Gelöst! Alle ' + pz.words.length + ' Wörter gefunden.';
       $('board-overlay').classList.add('show');
     }, 1300);
   }
@@ -1054,13 +1054,13 @@ async function persistProgress() {
   try { await storePut('progress', current.prog); } catch (e) { toast('Speichern fehlgeschlagen'); }
 }
 
-/* ---- MenÃ¼-Aktionen ---- */
+/* ---- Menü-Aktionen ---- */
 $('btn-menu').addEventListener('click', function () {
   openSheet(current ? current.rec.name : '', [
-    { label: 'ð¡ Tipp zeigen', onClick: giveHint },
-    { label: 'LÃ¶sung aufdecken (aufgeben)', danger: true, onClick: revealAll },
-    { label: 'Fortschritt zurÃ¼cksetzen', danger: true, onClick: resetProgress },
-    { label: 'RÃ¤tsel lÃ¶schen', danger: true, onClick: deleteCurrent },
+    { label: '💡 Tipp zeigen', onClick: giveHint },
+    { label: 'Lösung aufdecken (aufgeben)', danger: true, onClick: revealAll },
+    { label: 'Fortschritt zurücksetzen', danger: true, onClick: resetProgress },
+    { label: 'Rätsel löschen', danger: true, onClick: deleteCurrent },
     { label: 'Abbrechen', plain: true, onClick: function () {} }
   ]);
 });
@@ -1082,7 +1082,7 @@ function giveHint() {
   tx = 0; ty = 0;
   clampPan();
   requestLayout();
-  toast('ð¡ Tipp: â' + w + 'â beginnt im gelb gestrichelten Kreis');
+  toast('💡 Tipp: „' + w + '“ beginnt im gelb gestrichelten Kreis');
 }
 function revealAll() {
   if (!current || current.prog.done) return;
@@ -1104,7 +1104,7 @@ function revealAll() {
   current.prog.done = true;
   persistProgress();
   updateChips(); updateHeader(); requestDraw();
-  toast('LÃ¶sung aufgedeckt');
+  toast('Lösung aufgedeckt');
 }
 function resetProgress() {
   if (!current) return;
@@ -1114,7 +1114,7 @@ function resetProgress() {
   persistProgress();
   $('board-overlay').classList.remove('show');
   updateChips(); updateHeader(); requestLayout();
-  toast('Fortschritt zurÃ¼ckgesetzt');
+  toast('Fortschritt zurückgesetzt');
 }
 function deleteCurrent() {
   if (!current) return;
@@ -1123,7 +1123,7 @@ function deleteCurrent() {
   storeDelete('puzzles', id);
   storeDelete('progress', id);
   showScreen('screen-puzzles');
-  toast('RÃ¤tsel gelÃ¶scht');
+  toast('Rätsel gelöscht');
   renderList();
 }
 $('btn-back').addEventListener('click', function () {
