@@ -742,15 +742,13 @@ function fmtDate(ts) {
     box.innerHTML = '<div class="settings-form">' +
       '<div><label for="settings-key">OpenRouter Key</label><div class="input-wrap"><input id="settings-key" type="password" value="' + escapeHtml(($('ai-key').value || '').trim()) + '" autocomplete="off" /><button type="button" id="settings-toggle-key" class="btn ghost">Anzeigen</button></div></div>' +
       '<div><label for="settings-model">Modell</label><select id="settings-model" class="settings-select"></select></div>' +
-      '<label class="toggle-row"><span>Key im Klartext anzeigen</span><input id="settings-show-key" type="checkbox" /></label>' +
       '<button type="button" class="btn" id="settings-save">Speichern</button>' +
       '<button type="button" class="btn ghost" id="settings-close">Schließen</button>' +
       '</div>';
     var keyInput = $('settings-key');
     var modelInput = $('settings-model');
-    var showInput = $('settings-show-key');
-    showInput.checked = $('ai-key').type === 'text';
     keyInput.type = $('ai-key').type;
+    $('settings-toggle-key').textContent = keyInput.type === 'text' ? 'Verstecken' : 'Anzeigen';
     modelInput.innerHTML = '';
     modelOptions.forEach(function (value) {
       var option = document.createElement('option');
@@ -763,11 +761,7 @@ function fmtDate(ts) {
       var visible = keyInput.type === 'text';
       keyInput.type = visible ? 'password' : 'text';
       $('settings-toggle-key').textContent = visible ? 'Anzeigen' : 'Verstecken';
-      showInput.checked = !visible;
-    });
-    $('settings-show-key').addEventListener('change', function () {
-      keyInput.type = this.checked ? 'text' : 'password';
-      $('settings-toggle-key').textContent = this.checked ? 'Verstecken' : 'Anzeigen';
+      $('ai-show-key').checked = !visible;
     });
     $('settings-save').addEventListener('click', function () {
       $('ai-key').value = normalizeOpenRouterKey(keyInput.value);
@@ -829,9 +823,7 @@ function fmtDate(ts) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + key,
-          'HTTP-Referer': window.location.origin || 'https://localhost',
-          'X-Title': 'Suchsel Generator'
+          'Authorization': 'Bearer ' + key
         },
         body: JSON.stringify({
           model: model,
