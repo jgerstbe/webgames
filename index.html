@@ -91,6 +91,9 @@
       if (!('serviceWorker' in navigator)) return;
       var root = location.pathname.indexOf('/webgames/') !== -1 ? '/webgames/' : '/';
       navigator.serviceWorker.register(root + 'service-worker.js', { scope: root });
+      navigator.serviceWorker.addEventListener('controllerchange', function () {
+        window.location.reload();
+      });
     })();
   </script>
 </body>
