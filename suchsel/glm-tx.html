@@ -165,16 +165,21 @@
   #sheet .btn { display: block; width: 100%; margin-top: 8px; padding: 13px 16px; font-size: 15.5px; }
   #sheet .btn.plain { background: #f1f5f9; color: #0f172a; }
   #sheet .settings-form { display: flex; flex-direction: column; gap: 12px; }
-  #sheet .input-wrap { display: flex; gap: 8px; }
+  #sheet .input-wrap { display: flex; flex-direction: column; gap: 8px; }
   #sheet .input-wrap input, #sheet .settings-select {
-    flex: 1; width: 100%; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 10px 12px;
-    font-size: 14px; color: #0f172a; background: #fff;
+    flex: 1; min-width: 0; width: 100%; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 12px;
+    font-size: 16px; color: #0f172a; background: #fff; -webkit-user-select: text; user-select: text;
   }
+  #sheet .input-wrap .btn { width: 100%; margin-top: 0; }
   #sheet .toggle-row {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
     font-size: 14px; color: #334155; font-weight: 600; padding: 2px 0;
   }
   #sheet .toggle-row input { width: 18px; height: 18px; accent-color: #4f46e5; }
+  @media (min-width: 480px) {
+    #sheet .input-wrap { flex-direction: row; align-items: stretch; }
+    #sheet .input-wrap .btn { width: auto; min-width: 112px; }
+  }
 
   #toast {
     position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 90px); transform: translateX(-50%) translateY(8px);
@@ -596,6 +601,9 @@ function fmtDate(ts) {
   var OPENROUTER_THEME_KEY = 'suchsel-openrouter-theme';
   var OPENROUTER_SHOW_KEY_KEY = 'suchsel-openrouter-show-key';
   function parseWords(text) { return String(text || '').split(/[\n,;]+/).map(function (s) { return s.trim(); }).filter(Boolean); }
+  function normalizeOpenRouterKey(value) {
+    return String(value || '').trim().replace(/^Bearer\s+/i, '').replace(/\s+/g, '');
+  }
   function savePrefs() {
     try { localStorage.setItem(PREF_KEY, JSON.stringify({ words: $('words').value, width: $('in-width').value, height: $('in-height').value, target: $('in-target').value, h: $('dir-h').checked, v: $('dir-v').checked, d: $('dir-d').checked, r: $('dir-r').checked })); } catch (e) {}
   }
@@ -609,7 +617,9 @@ function fmtDate(ts) {
   }
   function saveAiPrefs() {
     try {
-      localStorage.setItem(OPENROUTER_KEY_KEY, $('ai-key').value.trim());
+      var key = normalizeOpenRouterKey($('ai-key').value);
+      $('ai-key').value = key;
+      localStorage.setItem(OPENROUTER_KEY_KEY, key);
       localStorage.setItem(OPENROUTER_MODEL_KEY, $('ai-model').value || 'openrouter/free');
       localStorage.setItem(OPENROUTER_THEME_KEY, $('ai-theme').value);
       localStorage.setItem(OPENROUTER_SHOW_KEY_KEY, $('ai-show-key').checked ? '1' : '0');
@@ -760,7 +770,7 @@ function fmtDate(ts) {
       $('settings-toggle-key').textContent = this.checked ? 'Verstecken' : 'Anzeigen';
     });
     $('settings-save').addEventListener('click', function () {
-      $('ai-key').value = keyInput.value.trim();
+      $('ai-key').value = normalizeOpenRouterKey(keyInput.value);
       $('ai-key').type = keyInput.type;
       $('ai-model').value = modelInput.value || 'openrouter/free';
       saveAiPrefs();
@@ -799,7 +809,7 @@ function fmtDate(ts) {
     };
   }
   async function generateWordsFromAI() {
-    var key = ($('ai-key').value || '').trim();
+    var key = normalizeOpenRouterKey($('ai-key').value);
     var model = $('ai-model').value || 'openrouter/free';
     var status = $('ai-status');
     var prompt = buildAiPrompt();
@@ -839,6 +849,9 @@ function fmtDate(ts) {
 
       if (!response.ok) {
         var errText = await response.text();
+        if (response.status === 401) {
+          throw new Error('OpenRouter lehnt den Key ab. Bitte den vollständigen API-Key aus OpenRouter kopieren und erneut speichern.');
+        }
         throw new Error('OpenRouter-Fehler: ' + response.status + ' ' + errText.slice(0, 180));
       }
 
