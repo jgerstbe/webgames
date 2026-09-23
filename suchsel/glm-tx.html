@@ -103,6 +103,17 @@
   #btn-pause { background: rgba(255,255,255,.18); color: #fff; padding: 7px 12px; font-size: 14px; }
 
   #wordlist { flex: 0 0 auto; max-height: 34%; overflow-y: auto; background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 10px 12px calc(env(safe-area-inset-bottom) + 12px); -webkit-overflow-scrolling: touch; }
+  #canvas-controls {
+    flex: 0 0 auto; display: flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 6px 10px; background: #fff; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;
+  }
+  #canvas-controls .control-group { display: flex; align-items: center; gap: 4px; }
+  #canvas-controls .control-spacer { width: 8px; }
+  #canvas-controls button {
+    width: 36px; height: 32px; padding: 0; border: 1px solid #cbd5e1; border-radius: 8px;
+    background: #f8fafc; color: #334155; font-size: 20px; line-height: 1; cursor: pointer; touch-action: manipulation;
+  }
+  #canvas-controls button:active { background: #e2e8f0; }
   #chips { display: flex; flex-wrap: wrap; gap: 6px; }
   .chip {
     font-size: 13px; font-weight: 600; letter-spacing: .05em; color: #334155;
@@ -122,7 +133,8 @@
   #board-overlay .row { display: flex; gap: 10px; }
   #pause-overlay {
     position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
-    background: rgba(15,23,42,.72); color: #fff; flex-direction: column; gap: 14px; z-index: 6;
+    background: rgba(255,255,255,.9); color: #0f172a; backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
+    flex-direction: column; gap: 14px; z-index: 6;
   }
   #pause-overlay.show { display: flex; }
   #pause-overlay .big { font-size: 26px; font-weight: 800; }
@@ -216,6 +228,19 @@
         <div id="pause-overlay">
           <div class="big">Pausiert</div>
           <button class="btn" id="btn-resume">▶ Fortsetzen</button>
+        </div>
+      </div>
+      <div id="canvas-controls" aria-label="Canvas-Steuerung">
+        <div class="control-group">
+          <button type="button" id="btn-pan-up" title="Nach oben" aria-label="Nach oben">↑</button>
+          <button type="button" id="btn-pan-down" title="Nach unten" aria-label="Nach unten">↓</button>
+          <button type="button" id="btn-pan-left" title="Nach links" aria-label="Nach links">←</button>
+          <button type="button" id="btn-pan-right" title="Nach rechts" aria-label="Nach rechts">→</button>
+        </div>
+        <span class="control-spacer"></span>
+        <div class="control-group">
+          <button type="button" id="btn-zoom-out" title="Herauszoomen" aria-label="Herauszoomen">−</button>
+          <button type="button" id="btn-zoom-in" title="Hineinzoomen" aria-label="Hineinzoomen">+</button>
         </div>
       </div>
       <div id="wordlist"><div id="chips"></div></div>
@@ -636,6 +661,14 @@ function fmtDate(ts) {
   $('btn-overlay-again').addEventListener('click', function () { $('board-overlay').classList.remove('show'); current.prog={puzzleId:current.rec.id,found:[],hints:[],done:false,elapsedMs:0}; current.foundSet.clear(); timerLoad(current.prog); updateChips(); updateHeader(); persist(); });
   function eventPoint(event) { var rect = boardCanvas.getBoundingClientRect(); return {x:event.clientX - rect.left, y:event.clientY - rect.top}; }
   function cellAt(point) { var p = current.rec.puzzle; return {r:Math.max(0, Math.min(p.height - 1, Math.floor((point.y - pad) / cell))), c:Math.max(0, Math.min(p.width - 1, Math.floor((point.x - pad) / cell)))}; }
+  function moveCanvas(dx, dy) {
+    if (!current || !timerHandle) return;
+    tx += dx; ty += dy; boardCanvas.style.left = tx + 'px'; boardCanvas.style.top = ty + 'px';
+  }
+  function changeZoom(amount) {
+    if (!current || !timerHandle) return;
+    zoom = Math.max(1, Math.min(6, zoom + amount)); layoutBoard();
+  }
   function lineBetween(start, end) {
     var dr = end.r - start.r, dc = end.c - start.c, ar = Math.abs(dr), ac = Math.abs(dc);
     if (dr !== 0 && dc !== 0 && ar !== ac) return null;
@@ -669,6 +702,20 @@ function fmtDate(ts) {
   boardCanvas.addEventListener('pointerup', pointerEnd); boardCanvas.addEventListener('pointercancel', pointerEnd);
   boardCanvas.addEventListener('wheel', function (event) { if (!current || !timerHandle) return; event.preventDefault(); zoom = Math.max(1, Math.min(6, zoom * (1 - event.deltaY * .0012))); layoutBoard(); }, {passive:false});
   $('btn-resume').addEventListener('click', function () { timerStart(); persist(); });
+  $('btn-pan-up').addEventListener('click', function () { moveCanvas(0, -Math.max(24, cell)); });
+  $('btn-pan-down').addEventListener('click', function () { moveCanvas(0, Math.max(24, cell)); });
+  $('btn-pan-left').addEventListener('click', function () { moveCanvas(-Math.max(24, cell), 0); });
+  $('btn-pan-right').addEventListener('click', function () { moveCanvas(Math.max(24, cell), 0); });
+  $('btn-zoom-out').addEventListener('click', function () { changeZoom(-0.25); });
+  $('btn-zoom-in').addEventListener('click', function () { changeZoom(0.25); });
+  function pauseWhenHidden() {
+    if (!current || !timerHandle || current.prog.done) return;
+    timerPause(); persist();
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) pauseWhenHidden();
+  });
+  window.addEventListener('pagehide', pauseWhenHidden);
   window.addEventListener('resize', function () { if (current) layoutBoard(); });
   loadPrefs(); updateWordCount(); openDB().finally(function () { renderList(); });
 </script>
