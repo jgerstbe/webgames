@@ -99,6 +99,7 @@
   #board { position: absolute; touch-action: none; }
   #fx { position: absolute; inset: 0; pointer-events: none; }
   #play-progress { font-size: 13px; font-weight: 700; background: rgba(255,255,255,.18); padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+  #play-timer { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; background: rgba(255,255,255,.18); padding: 4px 10px; border-radius: 999px; white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 
   #wordlist { flex: 0 0 auto; max-height: 34%; overflow-y: auto; background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 10px 12px calc(env(safe-area-inset-bottom) + 12px); -webkit-overflow-scrolling: touch; }
   #chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -190,6 +191,8 @@
       <button class="btn hdr back" id="btn-back">‹</button>
       <h1 id="play-title">Rätsel</h1>
       <span id="play-progress">0 / 0</span>
+      <span id="play-timer" class="timer" style="display:none;">00:00</span>
+      <button class="btn hdr" id="btn-timer" style="display:none;">⏸</button>
       <button class="btn hdr" id="btn-menu">⋯</button>
     </header>
     <main>
@@ -696,15 +699,21 @@ async function createPuzzle() {
 
 /* ================= Spiel ================= */
 var current = null;          // { rec, prog, foundSet:Set, revealedSet:Set }
-var cell = 20, pad = 12, dpr = 1, fitCell = 20;
-var zoom = 1, tx = 0, ty = 0;
-var selAnchor = null, selPath = [];
-var panLast = null;
-var pointers = new Map();
-var pinch = null;
-var needsLayout = false, needDraw = false;
-var boardCanvas = $('board'), boardCtx = boardCanvas.getContext('2d');
-var fxCanvas = $('fx');
+  var cell = 20, pad = 12, dpr = 1, fitCell = 20;
+  var zoom = 1, tx = 0, ty = 0;
+  var selAnchor = null, selPath = [];
+  var panLast = null;
+  var pointers = new Map();
+  var pinch = null;
+  var needsLayout = false, needDraw = false;
+  var boardCanvas = $('board'), boardCtx = boardCanvas.getContext('2d');
+  var fxCanvas = $('fx');
+
+  /* ---- Timer ---- */
+  var timerInterval = null;
+  var timerStart = 0;
+  var timerPausedAt = 0;
+  var timerIsPaused = true;
 
 function foundMarks() { return current.prog.found; }
 function foundSet() { return current.foundSet; }
@@ -725,6 +734,8 @@ async function startPlay(id) {
   buildChips();
   showScreen('screen-play');
   $('board-overlay').classList.remove('show');
+  timerSetState(prog.timer);
+  if (!current.prog.done) timerStartFn();
   requestAnimationFrame(function () { layoutBoard(); updateHeader(); });
 }
 
@@ -748,6 +759,70 @@ function updateChips() {
 function updateHeader() {
   var total = current.rec.puzzle.words.length;
   $('play-progress').textContent = foundSet().size + ' / ' + total;
+}
+
+function fmtTime(ms) {
+  var s = Math.floor(ms / 1000);
+  var m = Math.floor(s / 60);
+  s = s % 60;
+  return (m < 10 ? '0' + m : m) + ':' + (s < 10 ? '0' + s : s);
+}
+
+function timerUpdateDisplay() {
+  if (!current) return;
+  var elapsed = timerIsPaused ? timerPausedAt : (timerPausedAt + Date.now() - timerStart);
+  $('play-timer').textContent = fmtTime(elapsed);
+  $('play-timer').style.display = timerIsPaused ? 'none' : 'inline-block';
+  $('btn-timer').style.display = timerIsPaused ? 'none' : 'inline-block';
+  $('btn-timer').textContent = timerIsPaused ? '⏸' : '▶';
+}
+
+function timerStartFn() {
+  if (!timerIsPaused) return;
+  timerStart = Date.now();
+  timerIsPaused = false;
+  timerInterval = setInterval(timerUpdateDisplay, 200);
+  timerUpdateDisplay();
+}
+
+function timerPauseFn() {
+  if (timerIsPaused) return;
+  clearInterval(timerInterval);
+  timerInterval = null;
+  timerPausedAt += Date.now() - timerStart;
+  timerIsPaused = true;
+  timerUpdateDisplay();
+}
+
+function timerResetFn() {
+  clearInterval(timerInterval);
+  timerInterval = null;
+  timerStart = 0;
+  timerPausedAt = 0;
+  timerIsPaused = true;
+  timerUpdateDisplay();
+}
+
+function timerGetState() {
+  return {
+    pausedAt: timerPausedAt,
+    isPaused: timerIsPaused,
+    start: timerStart
+  };
+}
+
+function timerSetState(state) {
+  if (!state) { timerResetFn(); return; }
+  timerPausedAt = state.pausedAt || 0;
+  timerIsPaused = state.isPaused !== false;
+  if (timerIsPaused) {
+    timerStart = 0;
+    timerInterval = null;
+  } else {
+    timerStart = Date.now();
+    timerInterval = setInterval(timerUpdateDisplay, 200);
+  }
+  timerUpdateDisplay();
 }
 
 /* ---- Layout & Zeichnung ---- */
@@ -1039,6 +1114,7 @@ function checkWord(cells) {
   toast('🎉 ' + hit + ' gefunden!');
   if (foundSet().size === pz.words.length) {
     current.prog.done = true;
+    timerPauseFn();
     storePut('progress', current.prog).catch(function () {});
     confetti();
     setTimeout(function () {
@@ -1051,6 +1127,7 @@ function checkWord(cells) {
 async function persistProgress() {
   if (!current) return;
   current.prog.updated = Date.now();
+  current.prog.timer = timerGetState();
   try { await storePut('progress', current.prog); } catch (e) { toast('Speichern fehlgeschlagen'); }
 }
 
@@ -1063,6 +1140,9 @@ $('btn-menu').addEventListener('click', function () {
     { label: 'Rätsel löschen', danger: true, onClick: deleteCurrent },
     { label: 'Abbrechen', plain: true, onClick: function () {} }
   ]);
+});
+$('btn-timer').addEventListener('click', function () {
+  if (timerIsPaused) timerStartFn(); else timerPauseFn();
 });
 function giveHint() {
   if (!current || current.prog.done) return;
@@ -1111,6 +1191,7 @@ function resetProgress() {
   current.prog = { puzzleId: current.rec.id, found: [], hints: [], done: false, updated: Date.now() };
   current.foundSet = new Set();
   current.revealedSet = new Set();
+  timerResetFn();
   persistProgress();
   $('board-overlay').classList.remove('show');
   updateChips(); updateHeader(); requestLayout();
@@ -1118,8 +1199,11 @@ function resetProgress() {
 }
 function deleteCurrent() {
   if (!current) return;
+  timerResetFn();
   var id = current.rec.id;
   current = null;
+  $('btn-timer').style.display = 'none';
+  $('play-timer').style.display = 'none';
   storeDelete('puzzles', id);
   storeDelete('progress', id);
   showScreen('screen-puzzles');
@@ -1127,16 +1211,23 @@ function deleteCurrent() {
   renderList();
 }
 $('btn-back').addEventListener('click', function () {
+  if (current) { timerPauseFn(); persistProgress(); }
   current = null;
+  $('btn-timer').style.display = 'none';
+  $('play-timer').style.display = 'none';
   showScreen('screen-puzzles');
   renderList();
 });
 $('btn-overlay-list').addEventListener('click', function () {
+  if (current) { timerPauseFn(); persistProgress(); }
   current = null;
+  $('btn-timer').style.display = 'none';
+  $('play-timer').style.display = 'none';
   showScreen('screen-puzzles');
   renderList();
 });
 $('btn-overlay-again').addEventListener('click', function () {
+  if (current) timerResetFn();
   resetProgress();
 });
 
@@ -1178,7 +1269,10 @@ function confetti() {
 /* ---- Sonstiges ---- */
 window.addEventListener('resize', function () { if (current) requestLayout(); });
 window.addEventListener('orientationchange', function () { setTimeout(function () { if (current) requestLayout(); }, 350); });
-document.addEventListener('visibilitychange', function () { if (!document.hidden && current) requestLayout(); });
+document.addEventListener('visibilitychange', function () {
+  if (!document.hidden && current) requestLayout();
+  if (document.hidden && current && !current.prog.done) { timerPauseFn(); persistProgress(); }
+});
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () {});
 
 loadPrefs();
