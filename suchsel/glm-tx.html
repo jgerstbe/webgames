@@ -504,3 +504,105 @@ function fmtDate(ts) {
   try { return new Date(ts).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }); }
   catch (e) { return ''; }
 }
+
+  var COLORS = ['#e11d48', '#2563eb', '#059669', '#d97706', '#7c3aed', '#0d9488'];
+  function openSheet(title, actions) {
+    $('sheet-title').textContent = title;
+    var box = $('sheet-actions'); box.innerHTML = '';
+    actions.forEach(function (a) {
+      var button = document.createElement('button');
+      button.type = 'button'; button.className = 'btn' + (a.danger ? ' danger' : (a.plain ? ' plain' : ''));
+      button.textContent = a.label;
+      button.addEventListener('click', function () { closeSheet(); a.onClick(); });
+      box.appendChild(button);
+    });
+    $('sheet-backdrop').classList.add('show'); $('sheet').classList.add('show');
+  }
+  function closeSheet() { $('sheet-backdrop').classList.remove('show'); $('sheet').classList.remove('show'); }
+  $('sheet-backdrop').addEventListener('click', closeSheet);
+
+  var PREF_KEY = 'suchsel-prefs';
+  function parseWords(text) { return String(text || '').split(/[\n,;]+/).map(function (s) { return s.trim(); }).filter(Boolean); }
+  function savePrefs() {
+    try { localStorage.setItem(PREF_KEY, JSON.stringify({ words: $('words').value, width: $('in-width').value, height: $('in-height').value, target: $('in-target').value, h: $('dir-h').checked, v: $('dir-v').checked, d: $('dir-d').checked, r: $('dir-r').checked })); } catch (e) {}
+  }
+  function loadPrefs() {
+    try {
+      var p = JSON.parse(localStorage.getItem(PREF_KEY) || 'null'); if (!p) return;
+      if (p.words != null) $('words').value = p.words;
+      if (p.width) $('in-width').value = p.width; if (p.height) $('in-height').value = p.height; if (p.target) $('in-target').value = p.target;
+      $('dir-h').checked = p.h !== false; $('dir-v').checked = p.v !== false; $('dir-d').checked = p.d !== false; $('dir-r').checked = p.r !== false;
+    } catch (e) {}
+  }
+  function updateWordCount() { var n = parseWords($('words').value).length; $('word-count').textContent = n + (n === 1 ? ' Wort' : ' Wörter'); }
+  $('words').addEventListener('input', function () { updateWordCount(); savePrefs(); });
+
+  var current = null, boardCanvas = $('board'), boardCtx = boardCanvas.getContext('2d');
+  var cell = 20, pad = 12, zoom = 1, tx = 0, ty = 0, fxCanvas = $('fx');
+  var timerHandle = null, timerStarted = 0, elapsedMs = 0;
+  function formatTime(ms) { var seconds = Math.floor(ms / 1000), minutes = Math.floor(seconds / 60); seconds %= 60; return (minutes < 10 ? '0' : '') + minutes + ':' + (seconds < 10 ? '0' : '') + seconds; }
+  function timerDisplay() { if (!current) return; var ms = elapsedMs + (timerHandle ? Date.now() - timerStarted : 0); $('play-timer').textContent = formatTime(ms); }
+  function timerStart() {
+    if (!current || current.prog.done || timerHandle) return;
+    timerStarted = Date.now(); timerHandle = setInterval(timerDisplay, 250); timerDisplay();
+  }
+  function timerPause() {
+    if (!timerHandle) return;
+    elapsedMs += Date.now() - timerStarted; clearInterval(timerHandle); timerHandle = null; timerDisplay();
+  }
+  function timerLoad(prog) { clearInterval(timerHandle); timerHandle = null; elapsedMs = prog.elapsedMs || 0; timerStart(); }
+  function timerSave() { if (timerHandle) { elapsedMs += Date.now() - timerStarted; timerStarted = Date.now(); } if (current) current.prog.elapsedMs = elapsedMs; timerDisplay(); }
+
+  function showScreen(id) { document.querySelectorAll('.screen').forEach(function (s) { s.classList.remove('active'); }); $(id).classList.add('active'); }
+  function escapeHtml(s) { return String(s).replace(/[&<>"']/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  async function renderList() {
+    var list = $('puzzle-list'), puzzles = await storeGetAll('puzzles'), progress = await storeGetAll('progress'), byId = {};
+    progress.forEach(function (p) { byId[p.puzzleId] = p; }); puzzles.sort(function (a, b) { return b.createdAt - a.createdAt; }); list.innerHTML = '';
+    if (!puzzles.length && !$('new-form').classList.contains('open')) list.innerHTML = '<div class="empty">Noch keine Rätsel.<br>Tippe oben rechts auf „＋ Neues Rätsel“.</div>';
+    puzzles.forEach(function (record) {
+      var p = record.puzzle, prog = byId[record.id], found = prog ? prog.found.filter(function (m) { return !m.revealed; }).length : 0;
+      var card = document.createElement('div'); card.className = 'card';
+      card.innerHTML = '<div class="card-main"><div class="card-title">' + escapeHtml(record.name) + (prog && prog.done ? '<span class="badge-done">✓ gelöst</span>' : '') + '</div><div class="card-meta">' + p.height + ' × ' + p.width + ' · ' + p.words.length + ' Wörter · erstellt ' + fmtDate(record.createdAt) + '</div><div class="bar"><i style="width:' + Math.round(found / p.words.length * 100) + '%"></i></div><div class="card-sub">' + found + ' von ' + p.words.length + ' gefunden</div></div><button type="button" class="icon-btn del" title="Löschen">🗑</button>';
+      card.addEventListener('click', function () { startPlay(record.id); });
+      card.querySelector('.del').addEventListener('click', function (e) { e.stopPropagation(); openSheet('Rätsel löschen?', [{label:'Löschen', danger:true, onClick:function(){storeDelete('puzzles', record.id); storeDelete('progress', record.id); renderList();}}, {label:'Abbrechen', plain:true, onClick:function(){}}]); });
+      list.appendChild(card);
+    });
+  }
+  $('btn-new').addEventListener('click', function () { $('new-form').classList.toggle('open'); $('puzzle-list').style.display = $('new-form').classList.contains('open') ? 'none' : ''; renderList(); });
+  $('btn-cancel-form').addEventListener('click', function () { $('new-form').classList.remove('open'); $('puzzle-list').style.display = ''; renderList(); });
+  $('new-form').addEventListener('submit', function (e) { e.preventDefault(); createPuzzle(); });
+  async function createPuzzle() {
+    var error = $('form-error'), words = parseWords($('words').value), width = parseInt($('in-width').value, 10) || 50, height = parseInt($('in-height').value, 10) || 13, target = parseInt($('in-target').value, 10) || 15;
+    error.style.display = 'none'; if (!words.length) { error.textContent = 'Bitte mindestens ein Wort eingeben.'; error.style.display = 'block'; return; }
+    var puzzle = SuchselGen.generate({width:width, height:height, words:words.slice(0, target), directions:{horizontal:$('dir-h').checked, vertical:$('dir-v').checked, diagonal:$('dir-d').checked, reversed:$('dir-r').checked}, seed:Math.floor(Math.random() * 2147483647)});
+    if (puzzle.error) { error.textContent = puzzle.error; error.style.display = 'block'; return; }
+    savePrefs(); var record = {id:uuid(), name:puzzle.words[0] + (puzzle.words.length > 1 ? ' + ' + (puzzle.words.length - 1) + ' weitere' : ''), createdAt:Date.now(), puzzle:puzzle};
+    await storePut('puzzles', record); $('new-form').classList.remove('open'); $('puzzle-list').style.display = ''; await renderList(); startPlay(record.id);
+  }
+
+  function foundSet() { return current.foundSet; }
+  async function startPlay(id) {
+    var record = await storeGet('puzzles', id); if (!record) return toast('Rätsel nicht gefunden');
+    var prog = await storeGet('progress', id) || {puzzleId:id, found:[], hints:[], done:false, updated:Date.now(), elapsedMs:0};
+    current = {rec:record, prog:prog, foundSet:new Set(prog.found.map(function (m) { return m.word; }))};
+    zoom = 1; tx = 0; ty = 0; $('play-title').textContent = record.name; $('play-timer').style.display = 'inline-block'; $('btn-pause').style.display = 'inline-block';
+    $('chips').innerHTML = ''; record.puzzle.words.forEach(function (w) { var chip = document.createElement('span'); chip.className = 'chip'; chip.textContent = w; chip.dataset.word = w; $('chips').appendChild(chip); });
+    updateChips(); showScreen('screen-play'); $('board-overlay').classList.remove('show'); timerLoad(prog); requestAnimationFrame(function () { layoutBoard(); updateHeader(); });
+  }
+  function updateHeader() { $('play-progress').textContent = foundSet().size + ' / ' + current.rec.puzzle.words.length; }
+  function updateChips() { document.querySelectorAll('#chips .chip').forEach(function (chip) { chip.classList.toggle('found', foundSet().has(chip.dataset.word)); }); }
+  function layoutBoard() { if (!current) return; var wrap = $('board-wrap'), p = current.rec.puzzle; cell = Math.max(3, Math.floor(Math.min((wrap.clientWidth - 8) / p.width, (wrap.clientHeight - 8) / p.height) * zoom)); pad = Math.round(cell * .5) + 2; boardCanvas.style.width = (pad * 2 + cell * p.width) + 'px'; boardCanvas.style.height = (pad * 2 + cell * p.height) + 'px'; boardCanvas.width = boardCanvas.clientWidth * devicePixelRatio; boardCanvas.height = boardCanvas.clientHeight * devicePixelRatio; tx = Math.max(0, (wrap.clientWidth - boardCanvas.clientWidth) / 2); ty = Math.max(0, (wrap.clientHeight - boardCanvas.clientHeight) / 2); boardCanvas.style.left = tx + 'px'; boardCanvas.style.top = ty + 'px'; drawBoard(); }
+  function drawBoard() { if (!current) return; var p = current.rec.puzzle, w = boardCanvas.clientWidth, h = boardCanvas.clientHeight; boardCtx.setTransform(boardCanvas.width / w, 0, 0, boardCanvas.height / h, 0, 0); boardCtx.fillStyle = '#fff'; boardCtx.fillRect(0, 0, w, h); boardCtx.fillStyle = '#1f2937'; boardCtx.font = '600 ' + Math.max(7, Math.round(cell * .58)) + 'px sans-serif'; boardCtx.textAlign = 'center'; boardCtx.textBaseline = 'middle'; p.grid.forEach(function (row, r) { for (var c = 0; c < p.width; c++) boardCtx.fillText(row.charAt(c), pad + c * cell + cell / 2, pad + r * cell + cell / 2); }); }
+  function persist() { timerSave(); current.prog.updated = Date.now(); return storePut('progress', current.prog); }
+  function checkWord(word) { var p = current.rec.puzzle, placement = p.placements.find(function (x) { return x.word === word || x.word === word.split('').reverse().join(''); }); if (!placement || foundSet().has(placement.word)) return; current.prog.found.push({word:placement.word, cells:Array.from({length:placement.word.length}, function (_, i) { return {r:placement.r + placement.dr * i, c:placement.c + placement.dc * i}; }), color:COLORS[current.prog.found.length % COLORS.length], rot:0}); foundSet().add(placement.word); updateChips(); updateHeader(); persist(); if (foundSet().size === p.words.length) { current.prog.done = true; timerPause(); persist(); $('overlay-title').textContent = '🎉 Gelöst!'; $('board-overlay').classList.add('show'); } }
+  $('btn-pause').addEventListener('click', function () { if (timerHandle) timerPause(); else timerStart(); persist(); });
+  $('btn-menu').addEventListener('click', function () { openSheet(current.rec.name, [{label:'Fortschritt zurücksetzen', danger:true, onClick:function(){current.prog={puzzleId:current.rec.id,found:[],hints:[],done:false,elapsedMs:0}; current.foundSet.clear(); timerLoad(current.prog); updateChips(); updateHeader(); persist();}}, {label:'Rätsel löschen', danger:true, onClick:function(){var id=current.rec.id; timerPause(); current=null; storeDelete('puzzles',id); storeDelete('progress',id); showScreen('screen-puzzles'); renderList();}}, {label:'Abbrechen', plain:true, onClick:function(){}}]); });
+  $('btn-back').addEventListener('click', function () { if (current) { timerPause(); persist(); current = null; } showScreen('screen-puzzles'); renderList(); });
+  $('btn-overlay-list').addEventListener('click', function () { timerPause(); persist(); current = null; showScreen('screen-puzzles'); renderList(); });
+  $('btn-overlay-again').addEventListener('click', function () { $('board-overlay').classList.remove('show'); current.prog={puzzleId:current.rec.id,found:[],hints:[],done:false,elapsedMs:0}; current.foundSet.clear(); timerLoad(current.prog); updateChips(); updateHeader(); persist(); });
+  boardCanvas.addEventListener('click', function (e) { if (!current || current.prog.done) return; var rect = boardCanvas.getBoundingClientRect(), c = Math.max(0, Math.min(current.rec.puzzle.width - 1, Math.floor((e.clientX - rect.left - pad) / cell))), r = Math.max(0, Math.min(current.rec.puzzle.height - 1, Math.floor((e.clientY - rect.top - pad) / cell))); var letter = current.rec.puzzle.grid[r].charAt(c); var word = current.rec.puzzle.words.find(function (w) { return w.charAt(0) === letter && !foundSet().has(w); }); if (word) checkWord(word); });
+  window.addEventListener('resize', function () { if (current) layoutBoard(); });
+  loadPrefs(); updateWordCount(); openDB().finally(function () { renderList(); });
+</script>
+</body>
+</html>
