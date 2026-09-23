@@ -80,6 +80,15 @@
   #words:focus { outline: none; border-color: #4f46e5; }
   .hint { font-size: 12px; color: #64748b; margin-top: 4px; }
   .count-badge { display: inline-block; background: #eef2ff; color: #4338ca; font-weight: 700; border-radius: 999px; padding: 1px 9px; }
+  .ai-theme-box { display: none; }
+  .ai-theme-box.visible { display: block; }
+  .ai-theme-row { display: flex; gap: 8px; align-items: center; }
+  #ai-theme {
+    flex: 1; min-width: 0; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 10px 12px;
+    font-size: 14px; -webkit-user-select: text; user-select: text;
+  }
+  #ai-theme:focus { outline: none; border-color: #4f46e5; }
+  .ai-status { margin-top: 6px; font-size: 12px; color: #64748b; }
   .row3 { display: flex; gap: 10px; }
   .row3 > div { flex: 1; }
   .row3 input {
@@ -155,6 +164,17 @@
   #sheet-title { font-size: 14px; font-weight: 700; color: #64748b; text-align: center; padding: 6px 0 10px; }
   #sheet .btn { display: block; width: 100%; margin-top: 8px; padding: 13px 16px; font-size: 15.5px; }
   #sheet .btn.plain { background: #f1f5f9; color: #0f172a; }
+  #sheet .settings-form { display: flex; flex-direction: column; gap: 12px; }
+  #sheet .input-wrap { display: flex; gap: 8px; }
+  #sheet .input-wrap input, #sheet .settings-select {
+    flex: 1; width: 100%; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 10px 12px;
+    font-size: 14px; color: #0f172a; background: #fff;
+  }
+  #sheet .toggle-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    font-size: 14px; color: #334155; font-weight: 600; padding: 2px 0;
+  }
+  #sheet .toggle-row input { width: 18px; height: 18px; accent-color: #4f46e5; }
 
   #toast {
     position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 90px); transform: translateX(-50%) translateY(8px);
@@ -174,6 +194,7 @@
   <div id="screen-puzzles" class="screen active">
     <header>
       <h1>Suchsel</h1>
+      <button class="btn hdr" id="btn-settings" title="Einstellungen" aria-label="Einstellungen">⚙️</button>
       <button class="btn hdr" id="btn-new">＋ Neues Rätsel</button>
     </header>
     <main>
@@ -198,35 +219,22 @@
             <label><input type="checkbox" id="dir-r" checked> Rückwärts</label>
           </div>
         </div>
-        <div class="ai-mode-switch" aria-label="KI-Modus">
-          <button type="button" class="ai-mode-btn active" data-mode="manual">Formular</button>
-          <button type="button" class="ai-mode-btn" data-mode="chat">KI-Chat</button>
-        </div>
-        <div id="ai-panel-manual" class="ai-panel">
-          <label>KI-Modus (OpenRouter)</label>
-          <div class="row3">
-            <div><label for="ai-key">Key</label><input id="ai-key" type="password" placeholder="sk-or-..." autocomplete="off"></div>
-            <div><label for="ai-model">Modell</label><select id="ai-model">
-              <option value="openrouter/free">openrouter/free</option>
-            </select></div>
-          </div>
-          <label for="ai-prompt">Thema / Vorschau</label>
-          <textarea id="ai-prompt" spellcheck="false" placeholder="z. B. Tiere, Technik, Schule, Herbst, deutsche Wörter, 12 Wörter mit mittlerer Schwierigkeit"></textarea>
-          <div class="ai-actions">
-            <button type="button" class="btn ghost" id="btn-ai-generate">KI-Wörter erzeugen</button>
+        <div id="ai-theme-box" class="ai-theme-box">
+          <label for="ai-theme">Thema für KI-Wörter</label>
+          <div class="ai-theme-row">
+            <input id="ai-theme" type="text" placeholder="z. B. Tiere, Technik, Schule, Herbst" autocomplete="off" />
+            <button type="button" class="btn" id="btn-ai-generate">Wörter erzeugen</button>
           </div>
         </div>
-        <div id="ai-panel-chat" class="ai-panel hidden">
-          <label for="ai-chat-input">Chat-Anfrage</label>
-          <textarea id="ai-chat-input" spellcheck="false" placeholder="z. B. Erzeuge 12 deutsche Tierwörter für ein mittel schweres Suchsel mit 20×15 Feldern." rows="4"></textarea>
-          <div class="ai-actions">
-            <button type="button" class="btn ghost" id="btn-ai-chat">KI-Wörter aus Chat erzeugen</button>
-          </div>
-        </div>
-        <div id="ai-status" class="ai-status">Key wird lokal im Browser gespeichert.</div>
+        <div id="ai-status" class="ai-status">OpenRouter-Key in den Einstellungen speichern.</div>
         <div id="form-error"></div>
         <button type="submit" class="btn full" id="btn-create">Rätsel erstellen</button>
         <button type="button" class="btn ghost full" id="btn-cancel-form">Abbrechen</button>
+        <div style="display:none;">
+          <input id="ai-key" type="password" autocomplete="off">
+          <select id="ai-model"></select>
+          <input id="ai-show-key" type="checkbox">
+        </div>
       </form>
     </main>
   </div>
@@ -585,7 +593,8 @@ function fmtDate(ts) {
   var PREF_KEY = 'suchsel-prefs';
   var OPENROUTER_KEY_KEY = 'suchsel-openrouter-key';
   var OPENROUTER_MODEL_KEY = 'suchsel-openrouter-model';
-  var OPENROUTER_PROMPT_KEY = 'suchsel-openrouter-prompt';
+  var OPENROUTER_THEME_KEY = 'suchsel-openrouter-theme';
+  var OPENROUTER_SHOW_KEY_KEY = 'suchsel-openrouter-show-key';
   function parseWords(text) { return String(text || '').split(/[\n,;]+/).map(function (s) { return s.trim(); }).filter(Boolean); }
   function savePrefs() {
     try { localStorage.setItem(PREF_KEY, JSON.stringify({ words: $('words').value, width: $('in-width').value, height: $('in-height').value, target: $('in-target').value, h: $('dir-h').checked, v: $('dir-v').checked, d: $('dir-d').checked, r: $('dir-r').checked })); } catch (e) {}
@@ -602,30 +611,25 @@ function fmtDate(ts) {
     try {
       localStorage.setItem(OPENROUTER_KEY_KEY, $('ai-key').value.trim());
       localStorage.setItem(OPENROUTER_MODEL_KEY, $('ai-model').value || 'openrouter/free');
-      localStorage.setItem(OPENROUTER_PROMPT_KEY, $('ai-prompt').value);
+      localStorage.setItem(OPENROUTER_THEME_KEY, $('ai-theme').value);
+      localStorage.setItem(OPENROUTER_SHOW_KEY_KEY, $('ai-show-key').checked ? '1' : '0');
     } catch (e) {}
   }
   function loadAiPrefs() {
     try {
       var key = localStorage.getItem(OPENROUTER_KEY_KEY) || '';
       var model = localStorage.getItem(OPENROUTER_MODEL_KEY) || 'openrouter/free';
-      var prompt = localStorage.getItem(OPENROUTER_PROMPT_KEY) || 'Erzeuge passende deutsche Wörter für ein Wortsuchrätsel mit mittlerer Schwierigkeit.';
+      var theme = localStorage.getItem(OPENROUTER_THEME_KEY) || '';
+      var showKey = localStorage.getItem(OPENROUTER_SHOW_KEY_KEY) === '1';
       $('ai-key').value = key;
       $('ai-model').value = model;
-      $('ai-prompt').value = prompt;
-      if ($('ai-chat-input')) $('ai-chat-input').value = prompt;
+      $('ai-theme').value = theme;
+      $('ai-show-key').checked = showKey;
+      if ($('ai-show-key')) {
+        $('ai-key').type = showKey ? 'text' : 'password';
+      }
+      updateAiVisibility();
     } catch (e) {}
-  }
-  function setAiMode(mode) {
-    var manual = $('ai-panel-manual');
-    var chat = $('ai-panel-chat');
-    var buttons = document.querySelectorAll('.ai-mode-btn');
-    var isManual = mode === 'manual';
-    manual.classList.toggle('hidden', !isManual);
-    chat.classList.toggle('hidden', isManual);
-    buttons.forEach(function (button) {
-      button.classList.toggle('active', button.dataset.mode === mode);
-    });
   }
   function populateAiModels(models) {
     var select = $('ai-model');
@@ -664,11 +668,17 @@ function fmtDate(ts) {
       })
       .finally(function () { select.disabled = false; });
   }
+  function updateAiVisibility() {
+    var hasKey = !!($('ai-key').value || '').trim();
+    var box = $('ai-theme-box');
+    if (box) box.classList.toggle('visible', hasKey);
+  }
   function updateWordCount() { var n = parseWords($('words').value).length; $('word-count').textContent = n + (n === 1 ? ' Wort' : ' Wörter'); }
   $('words').addEventListener('input', function () { updateWordCount(); savePrefs(); });
-  $('ai-key').addEventListener('input', saveAiPrefs);
+  $('ai-key').addEventListener('input', function () { saveAiPrefs(); updateAiVisibility(); });
   $('ai-model').addEventListener('change', saveAiPrefs);
-  $('ai-prompt').addEventListener('input', saveAiPrefs);
+  $('ai-theme').addEventListener('input', saveAiPrefs);
+  $('ai-show-key').addEventListener('change', function () { $('ai-key').type = this.checked ? 'text' : 'password'; saveAiPrefs(); });
 
   var current = null, boardCanvas = $('board'), boardCtx = boardCanvas.getContext('2d');
   var cell = 20, pad = 12, zoom = 1, tx = 0, ty = 0, fxCanvas = $('fx');
@@ -714,25 +724,88 @@ function fmtDate(ts) {
     if (objMatch) cleaned = objMatch[0];
     try { return JSON.parse(cleaned); } catch (e) { return null; }
   }
-  function resolveAiRequestText() {
-    var mode = document.querySelector('.ai-mode-btn.active') ? document.querySelector('.ai-mode-btn.active').dataset.mode : 'manual';
-    if (mode === 'chat') {
-      return ($('ai-chat-input').value || '').trim() || 'Erzeuge passende deutsche Wörter für ein Wortsuchrätsel.';
-    }
-    return ($('ai-prompt').value || '').trim() || 'Erzeuge passende deutsche Wörter für ein Wortsuchrätsel mit mittlerer Schwierigkeit.';
+  function openSettings() {
+    $('sheet-title').textContent = 'OpenRouter Einstellungen';
+    var box = $('sheet-actions');
+    var modelOptions = Array.from(($('ai-model') || { options: [] }).options || []).map(function (opt) { return opt.value; });
+    if (!modelOptions.length) modelOptions = ['openrouter/free', 'openai/gpt-4o-mini', 'google/gemini-2.0-flash-001'];
+    box.innerHTML = '<div class="settings-form">' +
+      '<div><label for="settings-key">OpenRouter Key</label><div class="input-wrap"><input id="settings-key" type="password" value="' + escapeHtml(($('ai-key').value || '').trim()) + '" autocomplete="off" /><button type="button" id="settings-toggle-key" class="btn ghost">Anzeigen</button></div></div>' +
+      '<div><label for="settings-model">Modell</label><select id="settings-model" class="settings-select"></select></div>' +
+      '<label class="toggle-row"><span>Key im Klartext anzeigen</span><input id="settings-show-key" type="checkbox" /></label>' +
+      '<button type="button" class="btn" id="settings-save">Speichern</button>' +
+      '<button type="button" class="btn ghost" id="settings-close">Schließen</button>' +
+      '</div>';
+    var keyInput = $('settings-key');
+    var modelInput = $('settings-model');
+    var showInput = $('settings-show-key');
+    showInput.checked = $('ai-key').type === 'text';
+    keyInput.type = $('ai-key').type;
+    modelInput.innerHTML = '';
+    modelOptions.forEach(function (value) {
+      var option = document.createElement('option');
+      option.value = value;
+      option.textContent = value;
+      modelInput.appendChild(option);
+    });
+    modelInput.value = $('ai-model').value || 'openrouter/free';
+    $('settings-toggle-key').addEventListener('click', function () {
+      var visible = keyInput.type === 'text';
+      keyInput.type = visible ? 'password' : 'text';
+      $('settings-toggle-key').textContent = visible ? 'Anzeigen' : 'Verstecken';
+      showInput.checked = !visible;
+    });
+    $('settings-show-key').addEventListener('change', function () {
+      keyInput.type = this.checked ? 'text' : 'password';
+      $('settings-toggle-key').textContent = this.checked ? 'Verstecken' : 'Anzeigen';
+    });
+    $('settings-save').addEventListener('click', function () {
+      $('ai-key').value = keyInput.value.trim();
+      $('ai-key').type = keyInput.type;
+      $('ai-model').value = modelInput.value || 'openrouter/free';
+      saveAiPrefs();
+      updateAiVisibility();
+      closeSheet();
+    });
+    $('settings-close').addEventListener('click', closeSheet);
+    $('sheet-backdrop').classList.add('show'); $('sheet').classList.add('show');
+  }
+  function buildAiPrompt() {
+    var width = parseInt($('in-width').value, 10) || 50;
+    var height = parseInt($('in-height').value, 10) || 13;
+    var target = parseInt($('in-target').value, 10) || 15;
+    var theme = ($('ai-theme').value || '').trim();
+    var directions = {
+      horizontal: $('dir-h').checked,
+      vertical: $('dir-v').checked,
+      diagonal: $('dir-d').checked,
+      reversed: $('dir-r').checked
+    };
+    return {
+      task: 'Generate a list of German words for a word search puzzle.',
+      theme: theme || 'allgemein',
+      width: width,
+      height: height,
+      targetWords: target,
+      directions: directions,
+      language: 'de',
+      rules: [
+        'Return only valid JSON with a words array.',
+        'Do not use any previous words from the textarea.',
+        'Use only German words, no duplicates, no weird concatenations.',
+        'Use 3 to 12 letters per word.',
+        'Return at least 5 and no more than targetWords words.'
+      ]
+    };
   }
   async function generateWordsFromAI() {
     var key = ($('ai-key').value || '').trim();
     var model = $('ai-model').value || 'openrouter/free';
     var status = $('ai-status');
-    var width = parseInt($('in-width').value, 10) || 50;
-    var height = parseInt($('in-height').value, 10) || 13;
-    var target = parseInt($('in-target').value, 10) || 15;
-    var directions = { horizontal: $('dir-h').checked, vertical: $('dir-v').checked, diagonal: $('dir-d').checked, reversed: $('dir-r').checked };
-    var promptText = resolveAiRequestText();
+    var prompt = buildAiPrompt();
 
     if (!key) {
-      status.textContent = 'Bitte zuerst einen OpenRouter-Key eingeben.';
+      status.textContent = 'Bitte zuerst in den Einstellungen einen OpenRouter-Key eingeben.';
       status.style.color = '#b91c1c';
       return;
     }
@@ -756,24 +829,10 @@ function fmtDate(ts) {
           max_tokens: 500,
           messages: [{
             role: 'system',
-            content: 'Du antwortest immer nur als gültiges JSON. Du erzeugst ein Array mit dem Feld words. Keine Erklärungen, keine Markdown-Blöcke.'
+            content: 'Antworte nur als gültiges JSON. Das JSON-Format ist {"words":[...]} und nichts anderes.'
           }, {
             role: 'user',
-            content: JSON.stringify({
-              task: 'Generate a list of German words for a word search puzzle.',
-              theme: promptText,
-              width: width,
-              height: height,
-              targetWords: target,
-              directions: directions,
-              language: 'de',
-              rules: [
-                'Return only valid JSON with a words array.',
-                'Use only German words, no duplicates, no weird concatenations.',
-                'Use 3 to 12 letters per word.',
-                'Return at least 5 and no more than targetWords words.'
-              ]
-            })
+            content: JSON.stringify(prompt)
           }]
         })
       });
@@ -797,7 +856,7 @@ function fmtDate(ts) {
         .map(function (word) { return String(word).replace(/[^\p{L}\p{N}]/gu, '').toUpperCase(); })
         .filter(function (word) { return word.length >= 3 && word.length <= 20; })
         .filter(function (word, index, arr) { return arr.indexOf(word) === index; })
-        .slice(0, Math.max(1, target));
+        .slice(0, Math.max(1, parseInt($('in-target').value, 10) || 15));
 
       if (!wordList.length) throw new Error('Nach der Bereinigung bleiben keine gültigen Wörter übrig.');
 
@@ -816,10 +875,7 @@ function fmtDate(ts) {
   }
   $('new-form').addEventListener('submit', function (e) { e.preventDefault(); createPuzzle(); });
   $('btn-ai-generate').addEventListener('click', function () { generateWordsFromAI(); });
-  $('btn-ai-chat').addEventListener('click', function () { generateWordsFromAI(); });
-  document.querySelectorAll('.ai-mode-btn').forEach(function (button) {
-    button.addEventListener('click', function () { setAiMode(button.dataset.mode); });
-  });
+  $('btn-settings').addEventListener('click', openSettings);
   async function createPuzzle() {
     var error = $('form-error'), words = parseWords($('words').value), width = parseInt($('in-width').value, 10) || 50, height = parseInt($('in-height').value, 10) || 13, target = parseInt($('in-target').value, 10) || 15;
     error.style.display = 'none'; if (!words.length) { error.textContent = 'Bitte mindestens ein Wort eingeben.'; error.style.display = 'block'; return; }
