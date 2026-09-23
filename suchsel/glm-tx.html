@@ -198,15 +198,16 @@
             <label><input type="checkbox" id="dir-r" checked> Rückwärts</label>
           </div>
         </div>
-        <div class="ai-panel">
+        <div class="ai-mode-switch" aria-label="KI-Modus">
+          <button type="button" class="ai-mode-btn active" data-mode="manual">Formular</button>
+          <button type="button" class="ai-mode-btn" data-mode="chat">KI-Chat</button>
+        </div>
+        <div id="ai-panel-manual" class="ai-panel">
           <label>KI-Modus (OpenRouter)</label>
           <div class="row3">
             <div><label for="ai-key">Key</label><input id="ai-key" type="password" placeholder="sk-or-..." autocomplete="off"></div>
             <div><label for="ai-model">Modell</label><select id="ai-model">
-              <option value="openai/gpt-4o-mini">openai/gpt-4o-mini</option>
-              <option value="google/gemini-2.0-flash-001">google/gemini-2.0-flash-001</option>
-              <option value="meta-llama/llama-3.1-8b-instruct:free">meta-llama/llama-3.1-8b-instruct:free</option>
-              <option value="mistralai/mistral-7b-instruct:free">mistralai/mistral-7b-instruct:free</option>
+              <option value="openrouter/free">openrouter/free</option>
             </select></div>
           </div>
           <label for="ai-prompt">Thema / Vorschau</label>
@@ -214,8 +215,15 @@
           <div class="ai-actions">
             <button type="button" class="btn ghost" id="btn-ai-generate">KI-Wörter erzeugen</button>
           </div>
-          <div id="ai-status" class="ai-status">Key wird lokal im Browser gespeichert.</div>
         </div>
+        <div id="ai-panel-chat" class="ai-panel hidden">
+          <label for="ai-chat-input">Chat-Anfrage</label>
+          <textarea id="ai-chat-input" spellcheck="false" placeholder="z. B. Erzeuge 12 deutsche Tierwörter für ein mittel schweres Suchsel mit 20×15 Feldern." rows="4"></textarea>
+          <div class="ai-actions">
+            <button type="button" class="btn ghost" id="btn-ai-chat">KI-Wörter aus Chat erzeugen</button>
+          </div>
+        </div>
+        <div id="ai-status" class="ai-status">Key wird lokal im Browser gespeichert.</div>
         <div id="form-error"></div>
         <button type="submit" class="btn full" id="btn-create">Rätsel erstellen</button>
         <button type="button" class="btn ghost full" id="btn-cancel-form">Abbrechen</button>
@@ -593,19 +601,68 @@ function fmtDate(ts) {
   function saveAiPrefs() {
     try {
       localStorage.setItem(OPENROUTER_KEY_KEY, $('ai-key').value.trim());
-      localStorage.setItem(OPENROUTER_MODEL_KEY, $('ai-model').value);
+      localStorage.setItem(OPENROUTER_MODEL_KEY, $('ai-model').value || 'openrouter/free');
       localStorage.setItem(OPENROUTER_PROMPT_KEY, $('ai-prompt').value);
     } catch (e) {}
   }
   function loadAiPrefs() {
     try {
       var key = localStorage.getItem(OPENROUTER_KEY_KEY) || '';
-      var model = localStorage.getItem(OPENROUTER_MODEL_KEY) || 'openai/gpt-4o-mini';
+      var model = localStorage.getItem(OPENROUTER_MODEL_KEY) || 'openrouter/free';
       var prompt = localStorage.getItem(OPENROUTER_PROMPT_KEY) || 'Erzeuge passende deutsche Wörter für ein Wortsuchrätsel mit mittlerer Schwierigkeit.';
       $('ai-key').value = key;
       $('ai-model').value = model;
       $('ai-prompt').value = prompt;
+      if ($('ai-chat-input')) $('ai-chat-input').value = prompt;
     } catch (e) {}
+  }
+  function setAiMode(mode) {
+    var manual = $('ai-panel-manual');
+    var chat = $('ai-panel-chat');
+    var buttons = document.querySelectorAll('.ai-mode-btn');
+    var isManual = mode === 'manual';
+    manual.classList.toggle('hidden', !isManual);
+    chat.classList.toggle('hidden', isManual);
+    buttons.forEach(function (button) {
+      button.classList.toggle('active', button.dataset.mode === mode);
+    });
+  }
+  function populateAiModels(models) {
+    var select = $('ai-model');
+    var current = select.value || localStorage.getItem(OPENROUTER_MODEL_KEY) || 'openrouter/free';
+    var options = [];
+    (models || []).forEach(function (model) {
+      if (!model || !model.id) return;
+      options.push(model.id);
+    });
+    if (!options.length) {
+      options = ['openrouter/free', 'openai/gpt-4o-mini', 'google/gemini-2.0-flash-001'];
+    }
+    select.innerHTML = '';
+    options.forEach(function (id) {
+      var opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = id;
+      select.appendChild(opt);
+    });
+    if (options.indexOf(current) !== -1) select.value = current;
+    else if (options.indexOf('openrouter/free') !== -1) select.value = 'openrouter/free';
+    else select.value = options[0];
+    saveAiPrefs();
+  }
+  function loadAvailableAiModels() {
+    var select = $('ai-model');
+    select.disabled = true;
+    fetch('https://openrouter.ai/api/v1/models', { headers: { 'Accept': 'application/json' } })
+      .then(function (res) { if (!res.ok) throw new Error('models fetch failed'); return res.json(); })
+      .then(function (data) {
+        var models = Array.isArray(data && data.data) ? data.data : [];
+        populateAiModels(models);
+      })
+      .catch(function () {
+        populateAiModels([]);
+      })
+      .finally(function () { select.disabled = false; });
   }
   function updateWordCount() { var n = parseWords($('words').value).length; $('word-count').textContent = n + (n === 1 ? ' Wort' : ' Wörter'); }
   $('words').addEventListener('input', function () { updateWordCount(); savePrefs(); });
@@ -657,15 +714,22 @@ function fmtDate(ts) {
     if (objMatch) cleaned = objMatch[0];
     try { return JSON.parse(cleaned); } catch (e) { return null; }
   }
+  function resolveAiRequestText() {
+    var mode = document.querySelector('.ai-mode-btn.active') ? document.querySelector('.ai-mode-btn.active').dataset.mode : 'manual';
+    if (mode === 'chat') {
+      return ($('ai-chat-input').value || '').trim() || 'Erzeuge passende deutsche Wörter für ein Wortsuchrätsel.';
+    }
+    return ($('ai-prompt').value || '').trim() || 'Erzeuge passende deutsche Wörter für ein Wortsuchrätsel mit mittlerer Schwierigkeit.';
+  }
   async function generateWordsFromAI() {
     var key = ($('ai-key').value || '').trim();
-    var model = $('ai-model').value || 'openai/gpt-4o-mini';
-    var prompt = ($('ai-prompt').value || '').trim() || 'Erzeuge deutsche Wörter für ein Wortsuchrätsel mit mittlerer Schwierigkeit.';
+    var model = $('ai-model').value || 'openrouter/free';
     var status = $('ai-status');
     var width = parseInt($('in-width').value, 10) || 50;
     var height = parseInt($('in-height').value, 10) || 13;
     var target = parseInt($('in-target').value, 10) || 15;
     var directions = { horizontal: $('dir-h').checked, vertical: $('dir-v').checked, diagonal: $('dir-d').checked, reversed: $('dir-r').checked };
+    var promptText = resolveAiRequestText();
 
     if (!key) {
       status.textContent = 'Bitte zuerst einen OpenRouter-Key eingeben.';
@@ -692,22 +756,22 @@ function fmtDate(ts) {
           max_tokens: 500,
           messages: [{
             role: 'system',
-            content: 'Du erzeugst nur gültige JSON-Antworten. Antworte ausschließlich als JSON-Objekt. Das Feld words muss ein Array von Wörtern sein, keine Erklärungen.'
+            content: 'Du antwortest immer nur als gültiges JSON. Du erzeugst ein Array mit dem Feld words. Keine Erklärungen, keine Markdown-Blöcke.'
           }, {
             role: 'user',
             content: JSON.stringify({
-              task: 'Create a word search puzzle word list',
-              language: 'de',
-              topic: prompt,
+              task: 'Generate a list of German words for a word search puzzle.',
+              theme: promptText,
               width: width,
               height: height,
               targetWords: target,
               directions: directions,
+              language: 'de',
               rules: [
-                'Use only uppercase or lowercase German words.',
-                'Return 5 to targetWords words, each 3 to 12 letters.',
-                'Avoid duplicates and avoid weird merged words.',
-                'Output valid JSON only.'
+                'Return only valid JSON with a words array.',
+                'Use only German words, no duplicates, no weird concatenations.',
+                'Use 3 to 12 letters per word.',
+                'Return at least 5 and no more than targetWords words.'
               ]
             })
           }]
@@ -752,6 +816,10 @@ function fmtDate(ts) {
   }
   $('new-form').addEventListener('submit', function (e) { e.preventDefault(); createPuzzle(); });
   $('btn-ai-generate').addEventListener('click', function () { generateWordsFromAI(); });
+  $('btn-ai-chat').addEventListener('click', function () { generateWordsFromAI(); });
+  document.querySelectorAll('.ai-mode-btn').forEach(function (button) {
+    button.addEventListener('click', function () { setAiMode(button.dataset.mode); });
+  });
   async function createPuzzle() {
     var error = $('form-error'), words = parseWords($('words').value), width = parseInt($('in-width').value, 10) || 50, height = parseInt($('in-height').value, 10) || 13, target = parseInt($('in-target').value, 10) || 15;
     error.style.display = 'none'; if (!words.length) { error.textContent = 'Bitte mindestens ein Wort eingeben.'; error.style.display = 'block'; return; }
@@ -865,7 +933,7 @@ function fmtDate(ts) {
   });
   window.addEventListener('pagehide', pauseWhenHidden);
   window.addEventListener('resize', function () { if (current) layoutBoard(); });
-  loadPrefs(); loadAiPrefs(); updateWordCount(); openDB().finally(function () { renderList(); });
+  loadPrefs(); loadAiPrefs(); loadAvailableAiModels(); updateWordCount(); openDB().finally(function () { renderList(); });
 </script>
 <script>
   (function () {
